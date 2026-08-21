@@ -4,10 +4,23 @@ Entry point for Linux desktop testing and Android (Pixel 7a) APK runtime.
 """
 import os
 import sys
-from dotenv import load_dotenv
 
 # Load local environment if present (e.g. for GEMINI_API_KEY)
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # Graceful fallback if python-dotenv is not installed
+    if os.path.exists(".env"):
+        try:
+            with open(".env", "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        except Exception:
+            pass
 
 # Configure Kivy Window for mobile portrait aspect ratio on desktop
 from kivy.config import Config
