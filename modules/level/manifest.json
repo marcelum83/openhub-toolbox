@@ -1,0 +1,13 @@
+{
+  "id": "spirit_level",
+  "name": "Spirit Level",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Tools",
+  "description": "2-axis bubble level & digital inclinometer using Pixel 7a IMU.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "sensors:accelerometer"
+  ],
+  "trust_level": "trusted"
+}

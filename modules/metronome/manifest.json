@@ -1,0 +1,14 @@
+{
+  "id": "metronome",
+  "name": "Haptic Metronome",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Tools",
+  "description": "Tactile audio & haptic metronome with tap tempo & time signatures.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "feedback:haptics",
+    "audio:playback"
+  ],
+  "trust_level": "trusted"
+}

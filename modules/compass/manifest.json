@@ -1,0 +1,13 @@
+{
+  "id": "compass",
+  "name": "Digital Compass",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Field",
+  "description": "Magnetic azimuth compass & cardinal heading tracker.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "sensors:compass"
+  ],
+  "trust_level": "trusted"
+}

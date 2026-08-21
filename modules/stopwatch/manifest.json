@@ -1,0 +1,10 @@
+{
+  "id": "stopwatch",
+  "name": "Precision Stopwatch",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Tools",
+  "description": "Millisecond precision stopwatch with split lap tracking.",
+  "entrypoint": "main.py",
+  "trust_level": "trusted"
+}

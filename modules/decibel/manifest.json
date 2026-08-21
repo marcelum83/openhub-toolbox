@@ -1,0 +1,13 @@
+{
+  "id": "decibel_meter",
+  "name": "Sound Level Meter",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Field",
+  "description": "Real-time acoustic sound pressure (dB) meter & peak level analyzer.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "sensors:audio"
+  ],
+  "trust_level": "trusted"
+}

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.buildozer/
+bin/
+*.apk
+*.aab
+.pytest_cache/
+.DS_Store
+*.log
+*.tmp.py

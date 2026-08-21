@@ -1,0 +1,10 @@
+{
+  "id": "unit_converter",
+  "name": "Unit Converter",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Tools",
+  "description": "Multi-dimensional physical, engineering & lunar measurement converter.",
+  "entrypoint": "main.py",
+  "trust_level": "trusted"
+}
