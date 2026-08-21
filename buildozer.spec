@@ -22,7 +22,7 @@ version = 1.0.0
 requirements = python3, kivy==2.3.1, kivymd==1.2.0, plyer, pygments, requests, urllib3, certifi, charset-normalizer, idna, python-dotenv
 
 # (str) Supported orientations
-orientation = sensor
+orientation = portrait
 
 # (bool) Use screen/window fullscreen mode
 fullscreen = 1
