@@ -1,8 +1,8 @@
 """
 OpenHub Active Module Runner Screen
-Wraps the dynamically loaded module widget with a clean header, in-runner AI mutator bar,
-and live hot-reload hooks via ModuleManager & ForgeEngine.
+Scaled with dp/sp for high-density Pixel 7a screen.
 """
+from kivy.metrics import dp, sp
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
@@ -24,8 +24,8 @@ class ModuleRunnerScreen(Screen):
         
         self.layout = BoxLayout(orientation='vertical')
         
-        # 1. Header Bar
-        self.header = BoxLayout(orientation='horizontal', size_hint_y=None, height=52, padding=[10, 6, 10, 6], spacing=10)
+        # 1. Header Bar (Big touch targets)
+        self.header = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(60), padding=[dp(12), dp(8), dp(12), dp(8)], spacing=dp(10))
         with self.header.canvas.before:
             Color(*ColorSystem.SURFACE)
             self.header_bg = Rectangle(size=self.header.size, pos=self.header.pos)
@@ -35,11 +35,12 @@ class ModuleRunnerScreen(Screen):
         self.btn_back = Button(
             text="◀ DECK",
             size_hint_x=None,
-            width=80,
+            width=dp(95),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.PRIMARY,
-            bold=True
+            bold=True,
+            font_size="15sp"
         )
         self.btn_back.bind(on_release=self.on_back_clicked)
         self.header.add_widget(self.btn_back)
@@ -47,7 +48,7 @@ class ModuleRunnerScreen(Screen):
         # Module Title
         self.lbl_title = Label(
             text="Module",
-            font_size="16sp",
+            font_size="18sp",
             bold=True,
             color=ColorSystem.TEXT_PRIMARY,
             halign='left',
@@ -60,12 +61,12 @@ class ModuleRunnerScreen(Screen):
         self.btn_fork = Button(
             text="📑 FORK",
             size_hint_x=None,
-            width=70,
+            width=dp(80),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="11sp"
+            font_size="13sp"
         )
         self.btn_fork.bind(on_release=self.fork_current_module)
         self.header.add_widget(self.btn_fork)
@@ -74,12 +75,12 @@ class ModuleRunnerScreen(Screen):
         self.btn_edit_code = Button(
             text="✏️ CODE",
             size_hint_x=None,
-            width=70,
+            width=dp(80),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="11sp"
+            font_size="13sp"
         )
         self.btn_edit_code.bind(on_release=self.open_in_forge)
         self.header.add_widget(self.btn_edit_code)
@@ -91,7 +92,7 @@ class ModuleRunnerScreen(Screen):
         self.layout.add_widget(self.viewport)
         
         # 3. Bottom Inline Live AI Mutator Bar
-        self.mutate_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=48, padding=[8, 4, 8, 4], spacing=6)
+        self.mutate_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(60), padding=[dp(10), dp(8), dp(10), dp(8)], spacing=dp(8))
         with self.mutate_bar.canvas.before:
             Color(*ColorSystem.SURFACE)
             self.mutate_bg = Rectangle(size=self.mutate_bar.size, pos=self.mutate_bar.pos)
@@ -100,11 +101,12 @@ class ModuleRunnerScreen(Screen):
         self.txt_mutate = TextInput(
             hint_text="⚡ Tweak live: e.g. 'Add gallons & drawing'...",
             multiline=False,
+            font_size="14sp",
             background_color=ColorSystem.BG_DARK,
             foreground_color=ColorSystem.TEXT_PRIMARY,
             hint_text_color=ColorSystem.TEXT_HINT,
             cursor_color=ColorSystem.SECONDARY,
-            padding=[8, 6, 8, 6]
+            padding=[dp(10), dp(10), dp(10), dp(10)]
         )
         self.txt_mutate.bind(on_text_validate=self.trigger_inline_mutation)
         self.mutate_bar.add_widget(self.txt_mutate)
@@ -112,12 +114,12 @@ class ModuleRunnerScreen(Screen):
         self.btn_mutate = Button(
             text="⚡ TWEAK",
             size_hint_x=None,
-            width=85,
+            width=dp(100),
             background_normal="",
             background_color=ColorSystem.SECONDARY,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="11sp"
+            font_size="13sp"
         )
         self.btn_mutate.bind(on_release=self.trigger_inline_mutation)
         self.mutate_bar.add_widget(self.btn_mutate)
@@ -197,10 +199,7 @@ class ModuleRunnerScreen(Screen):
         if not self.active_descriptor:
             return
 
-        # Save code directly to the active module
         self.app_manager.module_mgr.save_code(self.active_descriptor, new_code)
-        
-        # Hot-reload in place!
         self.app_manager.launch_module(self.active_descriptor)
 
     def on_live_forge_error(self, instance, action, error_msg):
