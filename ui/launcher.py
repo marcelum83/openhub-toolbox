@@ -1,9 +1,7 @@
 """
 OpenHub Home Launcher (The Deck & Fast Creation Engine)
-Optimized for: Prompt → generate Kivy module → run immediately → duplicate/save/discard.
+Clean UI layer that delegates all module lifecycle actions to ModuleManager & ForgeEngine.
 """
-import os
-import shutil
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
@@ -14,26 +12,24 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
 from kivy.graphics import Color, Rectangle, RoundedRectangle
 from ui.themes import ColorSystem
-from core.forge_agent import ForgeAgent
-from core.scanner import ModuleDescriptor
-from core.security import TrustLevel
 
 class ScratchCard(BoxLayout):
     """
-    Tactile card for disposable / in-development scratch experiments.
+    Card for disposable scratchpad experiments.
+    Actions: [▶ RUN] [✏️ EDIT] [📑 FORK] [💾 SAVE] [🗑️ DELETE]
     """
-    def __init__(self, descriptor, on_run, on_edit, on_duplicate, on_save, on_delete, **kwargs):
+    def __init__(self, descriptor, on_run, on_edit, on_fork, on_save, on_delete, **kwargs):
         super().__init__(orientation='vertical', size_hint_y=None, height=105, padding=10, spacing=6, **kwargs)
         self.descriptor = descriptor
         
         with self.canvas.before:
-            Color(0.12, 0.10, 0.18, 1.0) # Violet-tinted dark surface
+            Color(0.12, 0.10, 0.18, 1.0)
             self.bg_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[10])
-            Color(0.54, 0.36, 0.96, 0.5)  # Violet accent border
+            Color(0.54, 0.36, 0.96, 0.5)
             self.border_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[10])
         self.bind(size=self._update_rects, pos=self._update_rects)
 
-        # Header Row: Name + Tag
+        # Header Row
         head = BoxLayout(orientation='horizontal', size_hint_y=None, height=24, spacing=8)
         lbl_title = Label(
             text=f"🧪 {descriptor.name}",
@@ -50,7 +46,7 @@ class ScratchCard(BoxLayout):
         head.add_widget(lbl_tag)
         self.add_widget(head)
 
-        # Action Buttons Row: [▶ RUN] [✏️ EDIT] [📑 DUPLICATE] [💾 SAVE] [🗑️]
+        # Action Buttons
         actions = BoxLayout(orientation='horizontal', size_hint_y=None, height=36, spacing=6)
         
         btn_run = Button(
@@ -67,7 +63,7 @@ class ScratchCard(BoxLayout):
 
         btn_edit = Button(
             text="✏️ EDIT",
-            size_hint_x=0.24,
+            size_hint_x=0.22,
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
@@ -77,21 +73,21 @@ class ScratchCard(BoxLayout):
         btn_edit.bind(on_release=lambda x: on_edit(descriptor))
         actions.add_widget(btn_edit)
 
-        btn_dup = Button(
-            text="📑 DUP",
-            size_hint_x=0.20,
+        btn_fork = Button(
+            text="📑 FORK",
+            size_hint_x=0.22,
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
             font_size="12sp"
         )
-        btn_dup.bind(on_release=lambda x: on_duplicate(descriptor))
-        actions.add_widget(btn_dup)
+        btn_fork.bind(on_release=lambda x: on_fork(descriptor))
+        actions.add_widget(btn_fork)
 
         btn_save = Button(
             text="💾 SAVE",
-            size_hint_x=0.20,
+            size_hint_x=0.22,
             background_normal="",
             background_color=ColorSystem.PRIMARY,
             color=ColorSystem.BG_DARK,
@@ -124,12 +120,13 @@ class ScratchCard(BoxLayout):
 
 class PermanentToolCard(BoxLayout):
     """
-    Card for established, saved toolbox items.
+    Card for established permanent tools.
+    Actions: Click card to [▶ RUN], with [✏️ EDIT] and [📑 FORK] buttons.
     """
-    def __init__(self, descriptor, on_launch, **kwargs):
-        super().__init__(orientation='vertical', size_hint_y=None, height=95, padding=12, spacing=4, **kwargs)
+    def __init__(self, descriptor, on_run, on_edit, on_fork, **kwargs):
+        super().__init__(orientation='vertical', size_hint_y=None, height=105, padding=12, spacing=4, **kwargs)
         self.descriptor = descriptor
-        self.on_launch = on_launch
+        self.on_run = on_run
         
         with self.canvas.before:
             Color(*ColorSystem.SURFACE)
@@ -140,7 +137,7 @@ class PermanentToolCard(BoxLayout):
 
         cat_emojis = {
             "Tools": "🛠️",
-            "Field": "🧭",
+            "Field": "🌱",
             "Agents": "🤖",
             "Creative": "🎨",
             "Experiments": "🔬"
@@ -177,10 +174,52 @@ class PermanentToolCard(BoxLayout):
             font_size="12sp",
             color=ColorSystem.TEXT_MUTED,
             halign='left',
-            valign='top'
+            valign='top',
+            size_hint_y=None,
+            height=20
         )
         lbl_desc.bind(size=lbl_desc.setter('text_size'))
         self.add_widget(lbl_desc)
+
+        # Quick Actions Row
+        actions = BoxLayout(orientation='horizontal', size_hint_y=None, height=30, spacing=8)
+        btn_run = Button(
+            text="▶ RUN",
+            size_hint_x=0.5,
+            background_normal="",
+            background_color=ColorSystem.SUCCESS,
+            color=(1, 1, 1, 1),
+            bold=True,
+            font_size="12sp"
+        )
+        btn_run.bind(on_release=lambda x: on_run(descriptor))
+        actions.add_widget(btn_run)
+
+        btn_edit = Button(
+            text="✏️ CODE",
+            size_hint_x=0.25,
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=ColorSystem.TEXT_PRIMARY,
+            bold=True,
+            font_size="11sp"
+        )
+        btn_edit.bind(on_release=lambda x: on_edit(descriptor))
+        actions.add_widget(btn_edit)
+
+        btn_fork = Button(
+            text="📑 FORK",
+            size_hint_x=0.25,
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=ColorSystem.TEXT_PRIMARY,
+            bold=True,
+            font_size="11sp"
+        )
+        btn_fork.bind(on_release=lambda x: on_fork(descriptor))
+        actions.add_widget(btn_fork)
+
+        self.add_widget(actions)
 
     def _update_rects(self, instance, value):
         self.bg_rect.pos = instance.pos
@@ -188,28 +227,19 @@ class PermanentToolCard(BoxLayout):
         self.border_rect.pos = instance.pos
         self.border_rect.size = instance.size
 
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            if self.on_launch:
-                self.on_launch(self.descriptor)
-            return True
-        return super().on_touch_down(touch)
-
 
 class LauncherScreen(Screen):
     def __init__(self, app_manager, **kwargs):
         super().__init__(**kwargs)
         self.app_manager = app_manager
-        self.agent = ForgeAgent()
-        self.agent.bind(on_agent_result=self.on_agent_created_module)
-        self.agent.bind(on_agent_error=self.on_agent_error)
+        self.forge = app_manager.forge
+        self.forge.bind(on_forge_success=self.on_forge_generated_module)
+        self.forge.bind(on_forge_error=self.on_forge_error)
 
         self.permanent_tools = []
         self.scratch_tools = []
         self.active_category = "All"
-        self.search_query = ""
 
-        # Root Layout
         root = BoxLayout(orientation='vertical', spacing=0)
         with root.canvas.before:
             Color(*ColorSystem.BG_DARK)
@@ -236,7 +266,6 @@ class LauncherScreen(Screen):
         lbl_logo.bind(size=lbl_logo.setter('text_size'))
         nav_bar.add_widget(lbl_logo)
 
-        # Forge Studio shortcut
         btn_forge = Button(
             text="⚡ THE FORGE (CODE)",
             size_hint_x=0.6,
@@ -249,7 +278,6 @@ class LauncherScreen(Screen):
         btn_forge.bind(on_release=lambda x: setattr(self.manager, 'current', 'forge'))
         nav_bar.add_widget(btn_forge)
 
-        # Refresh
         btn_refresh = Button(
             text="🔄",
             size_hint_x=None,
@@ -293,7 +321,7 @@ class LauncherScreen(Screen):
 
         prompt_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=44, spacing=8)
         self.txt_prompt = TextInput(
-            hint_text='e.g. "Water tank volume calculator in litres and gallons"...',
+            hint_text='e.g. "Solar collector radiator heat calculator"...',
             multiline=False,
             background_color=ColorSystem.SURFACE,
             foreground_color=ColorSystem.TEXT_PRIMARY,
@@ -364,11 +392,11 @@ class LauncherScreen(Screen):
         self.lbl_tools_hdr.bind(size=self.lbl_tools_hdr.setter('text_size'))
         self.content_box.add_widget(self.lbl_tools_hdr)
 
-        # Category Filter Bar
+        # Category Tabs
         cat_scroll = ScrollView(size_hint_y=None, height=36, do_scroll_x=True, do_scroll_y=False)
         cat_box = BoxLayout(orientation='horizontal', size_hint_x=None, spacing=6)
         cat_box.bind(minimum_width=cat_box.setter('width'))
-        self.categories = ["All", "Tools", "Field", "Agents", "Experiments"]
+        self.categories = ["All", "Tools", "Field", "Agents", "Creative", "Experiments"]
         self.cat_btns = {}
         for cat in self.categories:
             b = Button(
@@ -418,44 +446,23 @@ class LauncherScreen(Screen):
         
         self.lbl_create_status.text = f"🤖 Generating '{prompt}'..."
         self.btn_create.text = "⏳ ..."
-        self.agent.generate_or_mutate_tool(prompt)
+        self.current_generating_prompt = prompt
+        self.forge.generate(prompt)
 
-    def on_agent_created_module(self, instance, code, explanation):
+    def on_forge_generated_module(self, instance, action, code, explanation):
+        if action != "generate":
+            return
         self.btn_create.text = "⚡ CREATE & RUN"
-        prompt_text = self.txt_prompt.text.strip()
+        prompt_text = getattr(self, 'current_generating_prompt', 'tool')
         self.txt_prompt.text = ""
         self.lbl_create_status.text = f"✨ Created: {explanation}"
 
-        # 1. Determine next scratch filename (e.g. tmp_001_tank_calc.py)
-        scratch_dir = os.path.abspath("./modules/scratch")
-        os.makedirs(scratch_dir, exist_ok=True)
-        
-        existing = [f for f in os.listdir(scratch_dir) if f.startswith("tmp_") and f.endswith(".py")]
-        next_idx = len(existing) + 1
-        clean_slug = "_".join(prompt_text.lower().split()[:3]) if prompt_text else "tool"
-        clean_slug = "".join([c if c.isalnum() or c == '_' else '' for c in clean_slug])
-        filename = f"tmp_{next_idx:03d}_{clean_slug}.py"
-        file_path = os.path.join(scratch_dir, filename)
-
-        # 2. Write code
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(code)
-
-        # 3. Refresh modules and launch immediately!
+        # Delegate creation to ModuleManager
+        desc = self.app_manager.module_mgr.create_scratch(code, prompt=prompt_text)
         self.app_manager.refresh_modules()
-        
-        desc = ModuleDescriptor(
-            mod_id=os.path.splitext(filename)[0],
-            name=clean_slug.replace("_", " ").title(),
-            category="Scratch",
-            description=f"Generated from: '{prompt_text}'",
-            entrypoint=file_path,
-            trust_level=TrustLevel.EXPERIMENTAL,
-            is_scratch=True
-        )
         self.app_manager.launch_module(desc)
 
-    def on_agent_error(self, instance, error_msg):
+    def on_forge_error(self, instance, action, error_msg):
         self.btn_create.text = "⚡ CREATE & RUN"
         self.lbl_create_status.text = f"❌ Error: {error_msg}"
 
@@ -476,7 +483,7 @@ class LauncherScreen(Screen):
         self.rebuild_views()
 
     def rebuild_views(self):
-        # 1. Build Scratch Experiments Shelf
+        # 1. Build Scratch Shelf
         self.scratch_grid.clear_widgets()
         if not self.scratch_tools:
             self.lbl_scratch_hdr.text = "🧪 LIVE EXPERIMENTS & SCRATCH (0 Active)"
@@ -486,42 +493,40 @@ class LauncherScreen(Screen):
                 card = ScratchCard(
                     desc,
                     on_run=self.app_manager.launch_module,
-                    on_edit=self.edit_scratch_module,
-                    on_duplicate=self.duplicate_scratch_module,
+                    on_edit=self.edit_module,
+                    on_fork=self.fork_module,
                     on_save=self.prompt_save_scratch,
-                    on_delete=self.delete_scratch_module
+                    on_delete=self.delete_module
                 )
                 self.scratch_grid.add_widget(card)
 
-        # 2. Build Permanent Tools
+        # 2. Build Permanent Tools Shelf
         self.tools_grid.clear_widgets()
         for desc in self.permanent_tools:
             if self.active_category != "All" and desc.category != self.active_category:
                 continue
-            card = PermanentToolCard(desc, on_launch=self.app_manager.launch_module)
+            card = PermanentToolCard(
+                desc,
+                on_run=self.app_manager.launch_module,
+                on_edit=self.edit_module,
+                on_fork=self.fork_module
+            )
             self.tools_grid.add_widget(card)
 
-    def edit_scratch_module(self, descriptor):
-        # Read code into Forge Studio
+    def edit_module(self, descriptor):
         try:
-            with open(descriptor.entrypoint, 'r', encoding='utf-8') as f:
-                code = f.read()
-            forge = self.manager.get_screen('forge')
-            forge.load_code_for_editing(descriptor.name, code, descriptor.entrypoint)
+            code = self.app_manager.module_mgr.read_code(descriptor)
+            forge_screen = self.manager.get_screen('forge')
+            forge_screen.load_descriptor_for_editing(descriptor, code)
             self.manager.current = 'forge'
         except Exception as e:
             print(f"Error opening code in editor: {e}")
 
-    def duplicate_scratch_module(self, descriptor):
-        # Copy to new tmp_NNN file
-        scratch_dir = os.path.dirname(descriptor.entrypoint)
-        existing = [f for f in os.listdir(scratch_dir) if f.startswith("tmp_") and f.endswith(".py")]
-        next_idx = len(existing) + 1
-        base = os.path.basename(descriptor.entrypoint)
-        new_name = f"tmp_{next_idx:03d}_copy_{base}"
-        new_path = os.path.join(scratch_dir, new_name)
-        shutil.copyfile(descriptor.entrypoint, new_path)
+    def fork_module(self, descriptor):
+        # Delegate fork to ModuleManager
+        new_desc = self.app_manager.module_mgr.fork(descriptor)
         self.app_manager.refresh_modules()
+        self.lbl_create_status.text = f"📑 Forked '{descriptor.name}' as '{new_desc.name}'"
 
     def prompt_save_scratch(self, descriptor):
         content = BoxLayout(orientation='vertical', spacing=10, padding=12)
@@ -535,7 +540,8 @@ class LauncherScreen(Screen):
         btn_ok = Button(text="Save to Toolbox", background_color=ColorSystem.PRIMARY)
         def confirm_save(inst):
             final_name = name_in.text.strip() or descriptor.name
-            self.promote_to_permanent(descriptor, final_name)
+            self.app_manager.module_mgr.promote_to_permanent(descriptor, final_name)
+            self.app_manager.refresh_modules()
             popup.dismiss()
             
         btn_ok.bind(on_release=confirm_save)
@@ -543,35 +549,6 @@ class LauncherScreen(Screen):
         content.add_widget(btn_row)
         popup.open()
 
-    def promote_to_permanent(self, descriptor, name):
-        mod_id = name.lower().replace(" ", "_").replace("-", "_")
-        mod_dir = os.path.abspath(f"./modules/{mod_id}")
-        os.makedirs(mod_dir, exist_ok=True)
-        
-        # Copy file to main.py
-        shutil.copyfile(descriptor.entrypoint, os.path.join(mod_dir, "main.py"))
-        
-        # Create manifest
-        import json
-        manifest = {
-            "id": mod_id,
-            "name": name,
-            "version": "1.0.0",
-            "author": "mike",
-            "category": "Tools",
-            "description": f"Saved tool created from experiment.",
-            "entrypoint": "main.py",
-            "trust_level": "trusted"
-        }
-        with open(os.path.join(mod_dir, "manifest.json"), 'w', encoding='utf-8') as f:
-            json.dump(manifest, f, indent=2)
-
-        self.app_manager.refresh_modules()
-
-    def delete_scratch_module(self, descriptor):
-        try:
-            if os.path.exists(descriptor.entrypoint):
-                os.remove(descriptor.entrypoint)
-        except Exception as e:
-            print(f"Error removing scratch file: {e}")
+    def delete_module(self, descriptor):
+        self.app_manager.module_mgr.delete(descriptor)
         self.app_manager.refresh_modules()

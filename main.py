@@ -20,13 +20,13 @@ from kivy.uix.screenmanager import ScreenManager, FadeTransition
 from kivy.clock import Clock
 
 from core.hardware import HardwareBridge
-from core.scanner import ModuleScanner
+from core.module_manager import ModuleManager
+from core.forge_agent import ForgeEngine
 from core.security import HostAPI
 from core.runner import ModuleLoader
 from ui.launcher import LauncherScreen
 from ui.studio import ForgeStudioScreen
 from ui.module_runner import ModuleRunnerScreen
-from ui.themes import ColorSystem
 
 class OpenHubScreenManager(ScreenManager):
     def __init__(self, **kwargs):
@@ -41,8 +41,8 @@ class OpenHubApp(MDApp):
 
         # Initialize Core Systems
         self.hardware = HardwareBridge()
-        self.modules_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modules")
-        self.scanner = ModuleScanner(self.modules_dir)
+        self.module_mgr = ModuleManager(os.path.dirname(os.path.abspath(__file__)))
+        self.forge = ForgeEngine()
 
         # Build Screen Manager
         self.sm = OpenHubScreenManager()
@@ -66,7 +66,7 @@ class OpenHubApp(MDApp):
 
     def refresh_modules(self):
         """Scans the modules directory and refreshes both scratch and permanent shelves."""
-        permanent, scratch = self.scanner.scan_all()
+        permanent, scratch = self.module_mgr.scan()
         self.launcher_screen.update_all_modules(permanent, scratch)
 
     def launch_module(self, descriptor):

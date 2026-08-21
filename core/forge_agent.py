@@ -1,6 +1,7 @@
 """
-OpenHub Forge Agent
-Allows generating and self-mutating Kivy tools on the fly using Gemini API or local Ollama.
+OpenHub Forge Engine
+Autonomous AI engineering backend that generates, mutates, fixes, and explains Kivy modules.
+Works across Gemini API, local Ollama endpoints, or smart offline template synthesizers.
 """
 import os
 import re
@@ -10,54 +11,69 @@ import threading
 import urllib.request
 from kivy.clock import Clock
 from kivy.event import EventDispatcher
-from kivy.properties import BooleanProperty, StringProperty
+from kivy.properties import BooleanProperty
 
-class ForgeAgent(EventDispatcher):
-    is_generating = BooleanProperty(False)
+class ForgeEngine(EventDispatcher):
+    is_working = BooleanProperty(False)
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.register_event_type('on_agent_result')
-        self.register_event_type('on_agent_error')
+        self.register_event_type('on_forge_success')
+        self.register_event_type('on_forge_error')
         self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
         self.ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
 
-    def on_agent_result(self, code, explanation):
+    def on_forge_success(self, action, code, explanation):
         pass
 
-    def on_agent_error(self, error_message):
+    def on_forge_error(self, action, error_message):
         pass
 
-    def generate_or_mutate_tool(self, prompt, current_code=""):
-        """Background thread generation loop."""
-        if self.is_generating:
+    # --- Core Public API ---
+
+    def generate(self, prompt):
+        """Generate a brand new Kivy tool from a natural language prompt."""
+        self._dispatch_async("generate", prompt=prompt)
+
+    def mutate(self, current_code, instruction):
+        """Mutate and extend an existing Kivy code buffer with a new instruction."""
+        self._dispatch_async("mutate", prompt=instruction, current_code=current_code)
+
+    def fix(self, current_code, error_message):
+        """Diagnose and fix a syntax or runtime error in the code."""
+        prompt = f"Fix the following error in the Kivy application:\nError: {error_message}"
+        self._dispatch_async("fix", prompt=prompt, current_code=current_code)
+
+    # --- Internal Background Loop ---
+
+    def _dispatch_async(self, action, prompt="", current_code=""):
+        if self.is_working:
             return
-        self.is_generating = True
-        t = threading.Thread(target=self._run_loop, args=(prompt, current_code))
+        self.is_working = True
+        t = threading.Thread(target=self._worker, args=(action, prompt, current_code))
         t.daemon = True
         t.start()
 
-    def _run_loop(self, prompt, current_code):
+    def _worker(self, action, prompt, current_code):
         system_prompt = """You are an expert Kivy and Python developer embedded in OpenHub.
-Your task is to generate or mutate a standalone OpenHub module widget.
+Your task is to write or modify a standalone, responsive Kivy widget or application.
 
 RULES:
-1. Define a class named `OpenHubModule` that inherits from `BoxLayout` or another Kivy layout.
-2. Implement `def on_load(self, host_api):` to store `self.host = host_api` if needed.
-3. Keep the UI clean, modern, touch-friendly, and responsive for a mobile screen (9:16 or landscape).
-4. Return the complete, runnable Python code wrapped in ```python ... ```.
-5. Provide a short 1-2 sentence explanation of your design choices before or after the code block.
+1. Define a class named `OpenHubModule` that inherits from `BoxLayout` or another Kivy layout (or define an App/Widget).
+2. Keep the UI clean, modern, touch-friendly, and responsive for a mobile screen.
+3. Return the complete, runnable Python code wrapped in ```python ... ```.
+4. Provide a short 1-sentence summary of what you created or changed.
 """
-        user_message = f"User Request: {prompt}"
+        user_message = f"Action: {action.upper()}\nInstruction: {prompt}"
         if current_code and current_code.strip():
-            user_message += f"\n\nCurrent Working Code to mutate:\n```python\n{current_code}\n```"
+            user_message += f"\n\nExisting Code:\n```python\n{current_code}\n```"
 
         full_prompt = f"{system_prompt}\n\n{user_message}"
         response_text = ""
         error_msg = ""
 
-        # Try Gemini API if key present
+        # 1. Try Gemini API
         if self.gemini_api_key:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_api_key}"
@@ -71,7 +87,7 @@ RULES:
             except Exception as e:
                 error_msg = f"Gemini API error: {e}"
 
-        # Fallback to local Ollama if Gemini not available or failed
+        # 2. Try Ollama
         if not response_text:
             try:
                 payload = json.dumps({
@@ -85,24 +101,27 @@ RULES:
                     response_text = res_data.get("response", "")
             except Exception as e:
                 if not error_msg:
-                    error_msg = f"Ollama query failed: {e}"
+                    error_msg = f"Ollama error: {e}"
 
-        # If both fail, use smart template generator
+        # 3. Fallback Synthesizer
         if not response_text:
-            response_text = self._fallback_template(prompt)
+            response_text = self._fallback_synthesizer(prompt, current_code)
 
-        # Extract code and validate syntax
         code = self._extract_code(response_text)
         explanation = self._extract_explanation(response_text)
 
         if not self._is_valid_python(code):
-            Clock.schedule_once(lambda dt: self.dispatch('on_agent_error', "Generated code failed Python syntax validation."), 0.1)
+            Clock.schedule_once(lambda dt: self._deliver_error(action, "Generated code has syntax errors."), 0.1)
         else:
-            Clock.schedule_once(lambda dt: self._deliver_result(code, explanation), 0.1)
+            Clock.schedule_once(lambda dt: self._deliver_success(action, code, explanation), 0.1)
 
-    def _deliver_result(self, code, explanation):
-        self.is_generating = False
-        self.dispatch('on_agent_result', code, explanation)
+    def _deliver_success(self, action, code, explanation):
+        self.is_working = False
+        self.dispatch('on_forge_success', action, code, explanation)
+
+    def _deliver_error(self, action, error_message):
+        self.is_working = False
+        self.dispatch('on_forge_error', action, error_message)
 
     def _extract_code(self, text):
         match = re.search(r"```python\s*(.*?)\s*```", text, re.DOTALL)
@@ -111,7 +130,7 @@ RULES:
     def _extract_explanation(self, text):
         cleaned = re.sub(r"```python\s*.*?\s*```", "", text, flags=re.DOTALL).strip()
         lines = [l for l in cleaned.split("\n") if l.strip()]
-        return "\n".join(lines[:3]) if lines else "Module created successfully."
+        return lines[0] if lines else "Operation completed successfully."
 
     def _is_valid_python(self, code):
         try:
@@ -120,60 +139,69 @@ RULES:
         except SyntaxError:
             return False
 
-    def _fallback_template(self, prompt):
-        return f"""I have generated a starter interactive module based on "{prompt}".
+    def _fallback_synthesizer(self, prompt, current_code=""):
+        return f"""Created interactive tool for: {prompt}
 
 ```python
+import math
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.slider import Slider
-from kivy.graphics import Color, RoundedRectangle
+from kivy.uix.textinput import TextInput
 
 class OpenHubModule(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation='vertical', padding=20, spacing=15, **kwargs)
+        super().__init__(orientation='vertical', padding=16, spacing=12, **kwargs)
         
+        # Header
         self.add_widget(Label(
             text="{prompt.title()}",
-            font_size="24sp",
+            font_size="22sp",
+            bold=True,
             size_hint_y=None,
-            height=50,
+            height=40,
             color=(0.02, 0.71, 0.83, 1)
         ))
         
-        self.value_label = Label(
-            text="Value: 50.0",
-            font_size="18sp",
-            size_hint_y=None,
-            height=40
-        )
-        self.add_widget(self.value_label)
+        # Parameter 1: Diameter / Value A
+        self.add_widget(Label(text="Primary Input (e.g. Dimension A):", size_hint_y=None, height=25, color=(0.7,0.7,0.8,1)))
+        self.val_a = Slider(min=1, max=100, value=20, size_hint_y=None, height=40)
+        self.val_a.bind(value=self.recalculate)
+        self.add_widget(self.val_a)
         
-        self.slider = Slider(min=0, max=100, value=50)
-        self.slider.bind(value=self.on_slider_change)
-        self.add_widget(self.slider)
+        # Parameter 2: Height / Value B
+        self.add_widget(Label(text="Secondary Input (e.g. Dimension B):", size_hint_y=None, height=25, color=(0.7,0.7,0.8,1)))
+        self.val_b = Slider(min=1, max=100, value=50, size_hint_y=None, height=40)
+        self.val_b.bind(value=self.recalculate)
+        self.add_widget(self.val_b)
         
-        btn = Button(
-            text="Execute Action",
-            size_hint_y=None,
-            height=55,
-            background_color=(0.54, 0.36, 0.96, 1)
+        # Output Readout Card
+        self.lbl_result = Label(
+            text="Result: Calculating...",
+            font_size="24sp",
+            bold=True,
+            color=(0.15, 0.68, 0.38, 1),
+            size_hint_y=0.4
         )
-        btn.bind(on_release=self.on_btn_click)
-        self.add_widget(btn)
+        self.add_widget(self.lbl_result)
+        
+        self.recalculate()
 
     def on_load(self, host_api):
         self.host = host_api
-        if self.host:
-            self.host.log("Custom module loaded.")
 
-    def on_slider_change(self, instance, value):
-        self.value_label.text = f"Value: {{value:.1f}}"
-
-    def on_btn_click(self, instance):
-        if hasattr(self, 'host') and self.host and self.host.hardware:
-            self.host.hardware.vibrate(40)
-        self.value_label.text = f"Action Triggered at {{self.slider.value:.1f}}!"
+    def recalculate(self, *args):
+        a = self.val_a.value
+        b = self.val_b.value
+        # Generic volumetric / ratio computation
+        output = math.pi * ((a / 2.0) ** 2) * b
+        litres = output * 0.001
+        gallons = litres * 0.264172
+        self.lbl_result.text = f"{{litres:.1f}} Litres\\n({{gallons:.1f}} Gallons)"
 ```
 """
+
+# Backwards compatibility alias
+ForgeAgent = ForgeEngine

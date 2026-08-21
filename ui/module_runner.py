@@ -1,17 +1,15 @@
 """
 OpenHub Active Module Runner Screen
-Wraps the dynamically loaded module widget inside a clean host screen with a header
-and an inline live AI mutation bar.
+Wraps the dynamically loaded module widget with a clean header, in-runner AI mutator bar,
+and live hot-reload hooks via ModuleManager & ForgeEngine.
 """
-import os
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
-from kivy.graphics import Color, Rectangle, RoundedRectangle
+from kivy.graphics import Color, Rectangle
 from ui.themes import ColorSystem
-from core.forge_agent import ForgeAgent
 
 class ModuleRunnerScreen(Screen):
     def __init__(self, app_manager, **kwargs):
@@ -20,9 +18,9 @@ class ModuleRunnerScreen(Screen):
         self.active_module_widget = None
         self.active_descriptor = None
         
-        self.agent = ForgeAgent()
-        self.agent.bind(on_agent_result=self.on_live_mutate_result)
-        self.agent.bind(on_agent_error=self.on_live_mutate_error)
+        self.forge = app_manager.forge
+        self.forge.bind(on_forge_success=self.on_live_forge_success)
+        self.forge.bind(on_forge_error=self.on_live_forge_error)
         
         self.layout = BoxLayout(orientation='vertical')
         
@@ -58,11 +56,25 @@ class ModuleRunnerScreen(Screen):
         self.lbl_title.bind(size=self.lbl_title.setter('text_size'))
         self.header.add_widget(self.lbl_title)
         
+        # Fork Button
+        self.btn_fork = Button(
+            text="📑 FORK",
+            size_hint_x=None,
+            width=70,
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=ColorSystem.TEXT_PRIMARY,
+            bold=True,
+            font_size="11sp"
+        )
+        self.btn_fork.bind(on_release=self.fork_current_module)
+        self.header.add_widget(self.btn_fork)
+
         # Edit in Forge Button
         self.btn_edit_code = Button(
             text="✏️ CODE",
             size_hint_x=None,
-            width=75,
+            width=70,
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
@@ -86,7 +98,7 @@ class ModuleRunnerScreen(Screen):
         self.mutate_bar.bind(size=self._update_mutate_rect, pos=self._update_mutate_rect)
 
         self.txt_mutate = TextInput(
-            hint_text="⚡ Tweak tool: e.g. 'Add gallons & drawing'...",
+            hint_text="⚡ Tweak live: e.g. 'Add gallons & drawing'...",
             multiline=False,
             background_color=ColorSystem.BG_DARK,
             foreground_color=ColorSystem.TEXT_PRIMARY,
@@ -145,14 +157,20 @@ class ModuleRunnerScreen(Screen):
         if self.manager:
             self.manager.current = 'launcher'
 
+    def fork_current_module(self, instance):
+        if not self.active_descriptor:
+            return
+        new_desc = self.app_manager.module_mgr.fork(self.active_descriptor)
+        self.app_manager.refresh_modules()
+        self.app_manager.launch_module(new_desc)
+
     def open_in_forge(self, instance):
-        if not self.active_descriptor or not os.path.exists(self.active_descriptor.entrypoint):
+        if not self.active_descriptor:
             return
         try:
-            with open(self.active_descriptor.entrypoint, 'r', encoding='utf-8') as f:
-                code = f.read()
+            code = self.app_manager.module_mgr.read_code(self.active_descriptor)
             forge = self.manager.get_screen('forge')
-            forge.load_code_for_editing(self.active_descriptor.name, code, self.active_descriptor.entrypoint)
+            forge.load_descriptor_for_editing(self.active_descriptor, code)
             self.manager.current = 'forge'
         except Exception as e:
             print(f"Error opening code in forge: {e}")
@@ -163,28 +181,28 @@ class ModuleRunnerScreen(Screen):
             return
         
         try:
-            with open(self.active_descriptor.entrypoint, 'r', encoding='utf-8') as f:
-                current_code = f.read()
+            current_code = self.app_manager.module_mgr.read_code(self.active_descriptor)
         except Exception as e:
-            print(f"Failed to read current module code: {e}")
+            print(f"Failed to read current code: {e}")
             return
 
         self.btn_mutate.text = "⏳ ..."
-        self.agent.generate_or_mutate_tool(instruction, current_code)
+        self.forge.mutate(current_code, instruction)
 
-    def on_live_mutate_result(self, instance, new_code, explanation):
+    def on_live_forge_success(self, instance, action, new_code, explanation):
+        if action != "mutate":
+            return
         self.btn_mutate.text = "⚡ TWEAK"
         self.txt_mutate.text = ""
         if not self.active_descriptor:
             return
 
-        # Write mutated code directly to entrypoint file
-        with open(self.active_descriptor.entrypoint, 'w', encoding='utf-8') as f:
-            f.write(new_code)
-
-        # Hot-reload the module immediately in place!
+        # Save code directly to the active module
+        self.app_manager.module_mgr.save_code(self.active_descriptor, new_code)
+        
+        # Hot-reload in place!
         self.app_manager.launch_module(self.active_descriptor)
 
-    def on_live_mutate_error(self, instance, error_msg):
+    def on_live_forge_error(self, instance, action, error_msg):
         self.btn_mutate.text = "⚡ TWEAK"
-        print(f"[LiveMutate Error] {error_msg}")
+        print(f"[LiveForge Error] {error_msg}")
