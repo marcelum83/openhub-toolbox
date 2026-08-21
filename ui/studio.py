@@ -9,7 +9,6 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
 from kivy.graphics import Color, Rectangle
 from ui.themes import ColorSystem
@@ -67,6 +66,7 @@ class ForgeStudioScreen(Screen):
     def __init__(self, app_manager, **kwargs):
         super().__init__(**kwargs)
         self.app_manager = app_manager
+        self.active_file_path = None
         self.agent = ForgeAgent()
         self.agent.bind(on_agent_result=self.on_agent_result)
         self.agent.bind(on_agent_error=self.on_agent_error)
@@ -78,72 +78,71 @@ class ForgeStudioScreen(Screen):
         root.bind(size=self._update_bg, pos=self._update_bg)
 
         # 1. Top Nav Bar
-        nav = BoxLayout(orientation='horizontal', size_hint_y=None, height=56, padding=[12, 6, 12, 6], spacing=10)
+        nav = BoxLayout(orientation='horizontal', size_hint_y=None, height=52, padding=[12, 6, 12, 6], spacing=10)
         with nav.canvas.before:
             Color(*ColorSystem.SURFACE)
             self.nav_rect = Rectangle(size=nav.size, pos=nav.pos)
         nav.bind(size=self._update_nav_rect, pos=self._update_nav_rect)
 
-        lbl_logo = Label(
-            text="⚡ THE FORGE",
-            font_size="18sp",
+        # Back to Deck Button
+        btn_back = Button(
+            text="◀ DECK",
+            size_hint_x=None,
+            width=80,
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=ColorSystem.PRIMARY,
+            bold=True
+        )
+        btn_back.bind(on_release=self.switch_to_deck)
+        nav.add_widget(btn_back)
+
+        self.lbl_editor_title = Label(
+            text="⚡ FORGE STUDIO",
+            font_size="16sp",
             bold=True,
             color=ColorSystem.SECONDARY,
-            size_hint_x=None,
-            width=130,
             halign='left',
             valign='middle'
         )
-        lbl_logo.bind(size=lbl_logo.setter('text_size'))
-        nav.add_widget(lbl_logo)
-
-        # Tab: Toolbox
-        btn_deck = Button(
-            text="🛠️ TOOLBOX",
-            size_hint_x=0.5,
-            background_normal="",
-            background_color=ColorSystem.SURFACE_HOVER,
-            color=ColorSystem.TEXT_PRIMARY,
-            bold=True
-        )
-        btn_deck.bind(on_release=self.switch_to_deck)
-        nav.add_widget(btn_deck)
-
-        # Tab: Forge (Active)
-        btn_forge = Button(
-            text="⚡ THE FORGE",
-            size_hint_x=0.5,
-            background_normal="",
-            background_color=ColorSystem.SECONDARY,
-            color=ColorSystem.TEXT_PRIMARY,
-            bold=True
-        )
-        nav.add_widget(btn_forge)
+        self.lbl_editor_title.bind(size=self.lbl_editor_title.setter('text_size'))
+        nav.add_widget(self.lbl_editor_title)
 
         root.add_widget(nav)
 
-        # 2. Action Toolbar: [▶ RUN] [💾 SAVE TO TOOLBOX] [🧹 CLEAR]
+        # 2. Action Toolbar: [▶ RUN LIVE] [💾 SAVE] [➕ NEW]
         toolbar = BoxLayout(orientation='horizontal', size_hint_y=None, height=44, padding=[12, 4, 12, 4], spacing=8)
         
         btn_run = Button(
             text="▶ RUN LIVE",
             background_normal="",
             background_color=ColorSystem.SUCCESS,
-            color=ColorSystem.TEXT_PRIMARY,
+            color=(1, 1, 1, 1),
             bold=True
         )
         btn_run.bind(on_release=self.run_code_live)
         toolbar.add_widget(btn_run)
 
         btn_save = Button(
-            text="💾 SAVE TO TOOLBOX",
+            text="💾 SAVE FILE",
             background_normal="",
             background_color=ColorSystem.PRIMARY,
             color=ColorSystem.BG_DARK,
             bold=True
         )
-        btn_save.bind(on_release=self.show_save_dialog)
+        btn_save.bind(on_release=self.save_current_file)
         toolbar.add_widget(btn_save)
+
+        btn_new = Button(
+            text="➕ NEW",
+            size_hint_x=0.3,
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=ColorSystem.TEXT_PRIMARY,
+            bold=True
+        )
+        btn_new.bind(on_release=self.new_scratch_file)
+        toolbar.add_widget(btn_new)
 
         root.add_widget(toolbar)
 
@@ -174,7 +173,7 @@ class ForgeStudioScreen(Screen):
         # 5. Agent Prompt & Mutation Bar
         prompt_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, padding=[12, 6, 12, 6], spacing=8)
         self.prompt_input = TextInput(
-            hint_text="🤖 Ask AI: e.g. 'Add a water tank volume calculator'...",
+            hint_text="🤖 Ask AI to mutate: e.g. 'Add a drawing showing dimensions'...",
             multiline=False,
             background_color=ColorSystem.SURFACE,
             foreground_color=ColorSystem.TEXT_PRIMARY,
@@ -182,6 +181,7 @@ class ForgeStudioScreen(Screen):
             cursor_color=ColorSystem.SECONDARY,
             padding=[10, 8, 10, 8]
         )
+        self.prompt_input.bind(on_text_validate=self.ask_agent_to_mutate)
         prompt_box.add_widget(self.prompt_input)
 
         self.btn_ask = Button(
@@ -212,13 +212,45 @@ class ForgeStudioScreen(Screen):
         if self.manager:
             self.manager.current = 'launcher'
 
+    def load_code_for_editing(self, title, code, file_path):
+        self.active_file_path = file_path
+        self.code_editor.text = code
+        self.lbl_editor_title.text = f"✏️ {title}"
+        self.lbl_status.text = f"Editing: {os.path.basename(file_path)}"
+
+    def new_scratch_file(self, instance):
+        self.active_file_path = None
+        self.code_editor.text = STARTER_CODE
+        self.lbl_editor_title.text = "⚡ FORGE STUDIO (NEW)"
+        self.lbl_status.text = "New scratch draft initialized."
+
+    def save_current_file(self, instance):
+        code = self.code_editor.text
+        if self.active_file_path:
+            with open(self.active_file_path, 'w', encoding='utf-8') as f:
+                f.write(code)
+            self.lbl_status.text = f"✅ Saved to {os.path.basename(self.active_file_path)}"
+            self.app_manager.refresh_modules()
+        else:
+            # Create new scratch file
+            scratch_dir = os.path.abspath("./modules/scratch")
+            os.makedirs(scratch_dir, exist_ok=True)
+            existing = [f for f in os.listdir(scratch_dir) if f.startswith("tmp_") and f.endswith(".py")]
+            next_idx = len(existing) + 1
+            filename = f"tmp_{next_idx:03d}_custom_tool.py"
+            self.active_file_path = os.path.join(scratch_dir, filename)
+            with open(self.active_file_path, 'w', encoding='utf-8') as f:
+                f.write(code)
+            self.lbl_status.text = f"✅ Created {filename}"
+            self.app_manager.refresh_modules()
+
     def ask_agent_to_mutate(self, instance):
         prompt = self.prompt_input.text.strip()
         if not prompt:
             self.lbl_status.text = "Please enter an instruction for the agent."
             return
         
-        self.lbl_status.text = f"🤖 Agent is generating: '{prompt}'..."
+        self.lbl_status.text = f"🤖 Agent mutating code: '{prompt}'..."
         self.btn_ask.text = "⏳ ..."
         self.agent.generate_or_mutate_tool(prompt, self.code_editor.text)
 
@@ -227,6 +259,11 @@ class ForgeStudioScreen(Screen):
         self.code_editor.text = code
         self.lbl_status.text = f"✨ {explanation}"
         self.prompt_input.text = ""
+        # Auto-save to active file if present
+        if self.active_file_path:
+            with open(self.active_file_path, 'w', encoding='utf-8') as f:
+                f.write(code)
+            self.app_manager.refresh_modules()
 
     def on_agent_error(self, instance, error_msg):
         self.btn_ask.text = "⚡ MUTATE"
@@ -234,76 +271,28 @@ class ForgeStudioScreen(Screen):
 
     def run_code_live(self, instance):
         code = self.code_editor.text
-        # Syntax check
         try:
             ast.parse(code)
         except SyntaxError as e:
             self.lbl_status.text = f"Syntax Error: {e}"
             return
 
-        # Write to scratchpad file
-        scratch_dir = os.path.abspath("./modules/scratch")
-        os.makedirs(scratch_dir, exist_ok=True)
-        scratch_file = os.path.join(scratch_dir, "live_preview.py")
-        with open(scratch_file, 'w', encoding='utf-8') as f:
+        # Ensure file exists
+        if not self.active_file_path:
+            scratch_dir = os.path.abspath("./modules/scratch")
+            os.makedirs(scratch_dir, exist_ok=True)
+            self.active_file_path = os.path.join(scratch_dir, "live_preview.py")
+
+        with open(self.active_file_path, 'w', encoding='utf-8') as f:
             f.write(code)
 
         desc = ModuleDescriptor(
             mod_id="live_preview",
-            name="Live Preview",
+            name=os.path.basename(self.active_file_path),
             category="Scratch",
             description="Active Live Code Session",
-            entrypoint=scratch_file,
+            entrypoint=self.active_file_path,
             trust_level=TrustLevel.EXPERIMENTAL,
-            is_loose_script=True
+            is_scratch=True
         )
         self.app_manager.launch_module(desc)
-
-    def show_save_dialog(self, instance):
-        # Dialog popup to name the new module
-        content = BoxLayout(orientation='vertical', spacing=10, padding=12)
-        content.add_widget(Label(text="Save this code as a permanent OpenHub Module:"))
-        
-        name_input = TextInput(hint_text="Module Name (e.g. Tank Volume)", multiline=False)
-        content.add_widget(name_input)
-        
-        btn_box = BoxLayout(orientation='horizontal', spacing=8, size_hint_y=None, height=40)
-        popup = Popup(title="Save Module to Toolbox", content=content, size_hint=(0.85, 0.45))
-        
-        btn_confirm = Button(text="Save & Register", background_color=ColorSystem.PRIMARY)
-        def save_and_close(inst):
-            name = name_input.text.strip() or "Custom Tool"
-            self.save_module_permanently(name)
-            popup.dismiss()
-            
-        btn_confirm.bind(on_release=save_and_close)
-        btn_box.add_widget(btn_confirm)
-        content.add_widget(btn_box)
-        popup.open()
-
-    def save_module_permanently(self, name):
-        mod_id = name.lower().replace(" ", "_").replace("-", "_")
-        mod_dir = os.path.abspath(f"./modules/{mod_id}")
-        os.makedirs(mod_dir, exist_ok=True)
-        
-        # Write main.py
-        with open(os.path.join(mod_dir, "main.py"), 'w', encoding='utf-8') as f:
-            f.write(self.code_editor.text)
-            
-        # Write manifest.json
-        import json
-        manifest = {
-            "id": mod_id,
-            "name": name,
-            "version": "1.0.0",
-            "author": "mike",
-            "category": "Tools",
-            "description": f"Custom tool created via The Forge.",
-            "entrypoint": "main.py",
-            "trust_level": "trusted"
-        }
-        with open(os.path.join(mod_dir, "manifest.json"), 'w', encoding='utf-8') as f:
-            json.dump(manifest, f, indent=2)
-            
-        self.lbl_status.text = f"✅ Module '{name}' saved to Toolbox!"
-        self.app_manager.refresh_modules()

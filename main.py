@@ -47,7 +47,7 @@ class OpenHubApp(MDApp):
         # Build Screen Manager
         self.sm = OpenHubScreenManager()
         
-        # 1. Launcher Screen (The Deck)
+        # 1. Launcher Screen (The Deck & Fast Creation Engine)
         self.launcher_screen = LauncherScreen(self, name='launcher')
         self.sm.add_widget(self.launcher_screen)
 
@@ -56,7 +56,7 @@ class OpenHubApp(MDApp):
         self.sm.add_widget(self.forge_screen)
 
         # 3. Active Module Runner Screen
-        self.runner_screen = ModuleRunnerScreen(name='runner')
+        self.runner_screen = ModuleRunnerScreen(self, name='runner')
         self.sm.add_widget(self.runner_screen)
 
         # Initial module scan
@@ -65,9 +65,9 @@ class OpenHubApp(MDApp):
         return self.sm
 
     def refresh_modules(self):
-        """Scans the modules directory and refreshes the launcher card grid."""
-        descriptors = self.scanner.scan()
-        self.launcher_screen.update_modules(descriptors)
+        """Scans the modules directory and refreshes both scratch and permanent shelves."""
+        permanent, scratch = self.scanner.scan_all()
+        self.launcher_screen.update_all_modules(permanent, scratch)
 
     def launch_module(self, descriptor):
         """Loads and executes a dynamic module inside the host runner screen."""
