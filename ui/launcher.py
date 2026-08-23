@@ -795,15 +795,29 @@ class LauncherScreen(Screen):
         self.txt_prompt.bind(on_text_validate=self.on_create_prompt_submit)
         prompt_row.add_widget(self.txt_prompt)
 
+        btn_voice = Button(
+            text="🎙️",
+            size_hint_x=None,
+            width=dp(46),
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=ColorSystem.PRIMARY,
+            bold=True,
+            font_size="16sp",
+            always_release=True
+        )
+        btn_voice.bind(on_release=self.on_voice_create_pressed)
+        prompt_row.add_widget(btn_voice)
+
         self.btn_create = Button(
             text="⚡ CREATE",
             size_hint_x=None,
-            width=dp(120),
+            width=dp(105),
             background_normal="",
             background_color=ColorSystem.SECONDARY,
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="14sp",
+            font_size="13sp",
             always_release=True
         )
         self.btn_create.bind(on_release=self.on_create_prompt_submit)
@@ -855,6 +869,23 @@ class LauncherScreen(Screen):
         self.create_bg.pos = instance.pos
         self.create_bg.size = instance.size
         self.create_border.rounded_rectangle = (instance.x, instance.y, instance.width, instance.height, dp(16))
+
+    def on_voice_create_pressed(self, *args):
+        try:
+            from core.voice import VoiceBridge
+            self.lbl_create_status.text = "🎙️ Listening... Speak tool idea..."
+            voice = VoiceBridge(on_result_callback=self.on_voice_create_result, on_error_callback=self.on_voice_create_error)
+            voice.start_listening()
+        except Exception as e:
+            self.lbl_create_status.text = f"Voice error: {e}"
+
+    def on_voice_create_result(self, text):
+        self.lbl_create_status.text = f"🎙️ Heard: '{text}'"
+        self.txt_prompt.text = text
+        Clock.schedule_once(lambda dt: self.on_create_prompt_submit(None), 0.3)
+
+    def on_voice_create_error(self, err_msg):
+        self.lbl_create_status.text = f"🎙️ {err_msg}"
 
     def on_create_prompt_submit(self, instance):
         prompt = self.txt_prompt.text.strip()

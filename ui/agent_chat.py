@@ -271,7 +271,7 @@ class AgentChatScreen(Screen):
         root.add_widget(chips_box)
 
         # 5. Input Area
-        input_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(58), padding=[dp(8), dp(6), dp(8), dp(6)], spacing=dp(8))
+        input_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(58), padding=[dp(8), dp(6), dp(8), dp(6)], spacing=dp(6))
         with input_bar.canvas.before:
             Color(*ColorSystem.SURFACE)
             self.inp_rect = Rectangle(size=input_bar.size, pos=input_bar.pos)
@@ -289,15 +289,29 @@ class AgentChatScreen(Screen):
         self.txt_input.bind(on_text_validate=self.on_send_pressed)
         input_bar.add_widget(self.txt_input)
 
-        self.btn_send = Button(
-            text="🚀 SEND",
+        self.btn_voice = Button(
+            text="🎙️",
             size_hint_x=None,
-            width=dp(88),
+            width=dp(46),
+            background_normal="",
+            background_color=(0.18, 0.20, 0.30, 1.0),
+            color=(0.02, 0.71, 0.83, 1.0),
+            bold=True,
+            font_size="18sp",
+            always_release=True
+        )
+        self.btn_voice.bind(on_release=self.on_voice_pressed)
+        input_bar.add_widget(self.btn_voice)
+
+        self.btn_send = Button(
+            text="SEND",
+            size_hint_x=None,
+            width=dp(72),
             background_normal="",
             background_color=ColorSystem.PRIMARY,
             color=(0.05, 0.05, 0.08, 1.0),
             bold=True,
-            font_size="14sp",
+            font_size="13sp",
             always_release=True
         )
         self.btn_send.bind(on_release=self.on_send_pressed)
@@ -305,6 +319,26 @@ class AgentChatScreen(Screen):
         root.add_widget(input_bar)
 
         self.add_widget(root)
+
+    def on_voice_pressed(self, *args):
+        try:
+            from core.voice import VoiceBridge
+            self.lbl_status.text = "🎙️ Listening... Speak your request..."
+            self.btn_voice.background_color = (0.85, 0.2, 0.2, 1.0)
+            voice = VoiceBridge(on_result_callback=self.on_voice_result, on_error_callback=self.on_voice_error)
+            voice.start_listening()
+        except Exception as e:
+            self.lbl_status.text = f"Voice error: {e}"
+
+    def on_voice_result(self, text):
+        self.btn_voice.background_color = (0.18, 0.20, 0.30, 1.0)
+        self.lbl_status.text = f"🎙️ Heard: '{text}'"
+        self.txt_input.text = text
+        Clock.schedule_once(lambda dt: self.on_send_pressed(None), 0.3)
+
+    def on_voice_error(self, err_msg):
+        self.btn_voice.background_color = (0.18, 0.20, 0.30, 1.0)
+        self.lbl_status.text = f"🎙️ {err_msg}"
 
         # Add initial welcome bubble
         Clock.schedule_once(lambda dt: self.add_welcome_bubble(), 0.2)

@@ -13,6 +13,15 @@ REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODULES_DIR = os.path.join(REPO_DIR, "modules")
 BIN_DIR = os.path.join(REPO_DIR, "bin")
 
+LATEST_TELEMETRY = {
+    "pitch": 0.0,
+    "roll": 0.0,
+    "heading": 0.0,
+    "lux": 0.0,
+    "db": 0.0,
+    "timestamp": 0
+}
+
 class OpenHubSyncHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=BIN_DIR, **kwargs)
@@ -66,12 +75,74 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, "Module not found")
                 return
 
+        # 3. API: Get Latest Phone Telemetry
+        if parsed.path == "/api/remote/telemetry":
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(LATEST_TELEMETRY).encode('utf-8'))
+            return
+
         # Fallback to standard bin/ static files (APK, version.json, index.html)
         return super().do_GET()
 
     def do_POST(self):
+        global LATEST_TELEMETRY
         parsed = urllib.parse.urlparse(self.path)
         
+        # API: Remote Action (PC Mouse / Trackpad / Media control)
+        if parsed.path == "/api/remote/action":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                act_type = data.get("type", "")
+                
+                if act_type == "mouse_move":
+                    dx = int(data.get("dx", 0))
+                    dy = int(data.get("dy", 0))
+                    if dx != 0 or dy != 0:
+                        subprocess.run(["xdotool", "mousemove_relative", "--", str(dx), str(dy)], capture_output=True)
+                elif act_type == "click":
+                    btn = int(data.get("button", 1))
+                    subprocess.run(["xdotool", "click", str(btn)], capture_output=True)
+                elif act_type == "key":
+                    key = data.get("key", "")
+                    if key:
+                        subprocess.run(["xdotool", "key", key], capture_output=True)
+                elif act_type == "type":
+                    text = data.get("text", "")
+                    if text:
+                        subprocess.run(["xdotool", "type", "--", text], capture_output=True)
+
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok"}')
+                return
+            except Exception as e:
+                self.send_error(500, f"Remote execution error: {e}")
+                return
+
+        # API: Telemetry Stream from Mobile
+        if parsed.path == "/api/remote/telemetry":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                LATEST_TELEMETRY.update(data)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok"}')
+                return
+            except Exception as e:
+                self.send_error(500, f"Telemetry error: {e}")
+                return
+
         # API: Publish Module from mobile to Central Repository & GitHub
         if parsed.path == "/api/modules/publish":
             content_length = int(self.headers.get('Content-Length', 0))

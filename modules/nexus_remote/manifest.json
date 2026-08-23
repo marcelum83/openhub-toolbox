@@ -1,0 +1,17 @@
+{
+  "id": "nexus_remote",
+  "name": "Nexus Remote & Telemetry Bridge",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Field",
+  "description": "Wireless PC trackpad, media/presentation controller, remote typing & real-time sensor telemetry coprocessor.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "network:internet",
+    "sensors:accelerometer",
+    "sensors:compass",
+    "sensors:lux",
+    "feedback:haptics"
+  ],
+  "trust_level": "trusted"
+}
