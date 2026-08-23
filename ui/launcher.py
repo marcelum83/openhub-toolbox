@@ -449,85 +449,81 @@ class ScratchCard(BoxLayout):
         self.add_widget(head)
 
         # Action Buttons Row
-        self.actions_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(52), spacing=dp(6))
+        self.actions_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50), spacing=dp(5))
         
         btn_run = Button(
             text="▶ RUN",
-            size_hint_x=0.28,
+            size_hint_x=0.26,
             background_normal="",
             background_color=ColorSystem.SUCCESS,
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="14sp",
+            font_size="13sp",
             always_release=True
         )
         btn_run.bind(on_release=lambda *a, d=descriptor: self.on_run(d))
         self.actions_box.add_widget(btn_run)
 
         btn_edit = Button(
-            text="✏️",
-            size_hint_x=None,
-            width=dp(44),
+            text="CODE",
+            size_hint_x=0.18,
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="15sp",
+            font_size="12sp",
             always_release=True
         )
         btn_edit.bind(on_release=lambda *a, d=descriptor: self.on_edit(d))
         self.actions_box.add_widget(btn_edit)
 
         btn_fork = Button(
-            text="📑",
-            size_hint_x=None,
-            width=dp(44),
+            text="FORK",
+            size_hint_x=0.18,
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="15sp",
+            font_size="12sp",
             always_release=True
         )
         btn_fork.bind(on_release=lambda *a, d=descriptor: self.on_fork(d))
         self.actions_box.add_widget(btn_fork)
 
         btn_save = Button(
-            text="💾 SAVE",
-            size_hint_x=0.24,
+            text="SAVE",
+            size_hint_x=0.18,
             background_normal="",
             background_color=ColorSystem.PRIMARY,
             color=ColorSystem.BG_DARK,
             bold=True,
-            font_size="13sp",
+            font_size="12sp",
             always_release=True
         )
         btn_save.bind(on_release=lambda *a, d=descriptor: self.on_save(d))
         self.actions_box.add_widget(btn_save)
 
         btn_pub = Button(
-            text="☁️",
-            size_hint_x=None,
-            width=dp(44),
+            text="PUB",
+            size_hint_x=0.16,
             background_normal="",
             background_color=(0.18, 0.25, 0.4, 1.0),
             color=(0.3, 0.8, 1.0, 1.0),
             bold=True,
-            font_size="16sp",
+            font_size="12sp",
             always_release=True
         )
         btn_pub.bind(on_release=lambda *a, d=descriptor: self.on_publish(d) if self.on_publish else None)
         self.actions_box.add_widget(btn_pub)
 
         btn_del = Button(
-            text="🗑️",
-            size_hint_x=None,
-            width=dp(44),
+            text="DEL",
+            size_hint_x=0.16,
             background_normal="",
             background_color=(0.35, 0.1, 0.1, 1),
             color=ColorSystem.DANGER,
             bold=True,
-            font_size="16sp",
+            font_size="12sp",
             always_release=True
         )
         btn_del.bind(on_release=lambda *a, d=descriptor: self.on_delete(d))
@@ -562,17 +558,17 @@ class PermanentToolCard(BoxLayout):
         self.bind(size=self._update_rects, pos=self._update_rects)
 
         cat_emojis = {
-            "Tools": "🛠️",
-            "Field": "🌱",
-            "Agents": "🤖",
-            "Creative": "🎨",
-            "Experiments": "🔬"
+            "Tools": "•",
+            "Field": "•",
+            "Agents": "•",
+            "Creative": "•",
+            "Experiments": "•"
         }
-        emoji = cat_emojis.get(descriptor.category, "📦")
+        emoji = cat_emojis.get(descriptor.category, "•")
 
         head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(8))
         lbl_title = Label(
-            text=f"{emoji} {descriptor.name}",
+            text=f"{descriptor.name}",
             font_size="18sp",
             bold=True,
             color=ColorSystem.TEXT_PRIMARY,
@@ -597,7 +593,7 @@ class PermanentToolCard(BoxLayout):
         self.add_widget(head)
 
         # Quick Actions Row
-        actions = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(52), spacing=dp(8))
+        actions = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50), spacing=dp(6))
         
         btn_run = Button(
             text="▶ RUN TOOL",
@@ -606,47 +602,46 @@ class PermanentToolCard(BoxLayout):
             background_color=ColorSystem.SUCCESS,
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="15sp",
+            font_size="14sp",
             always_release=True
         )
         btn_run.bind(on_release=lambda *a, d=descriptor: self.on_run(d))
         actions.add_widget(btn_run)
 
         btn_edit = Button(
-            text="✏️ CODE",
-            size_hint_x=0.22,
+            text="CODE",
+            size_hint_x=0.20,
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="13sp",
+            font_size="12sp",
             always_release=True
         )
         btn_edit.bind(on_release=lambda *a, d=descriptor: self.on_edit(d))
         actions.add_widget(btn_edit)
 
         btn_fork = Button(
-            text="📑 FORK",
-            size_hint_x=0.20,
+            text="FORK",
+            size_hint_x=0.18,
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="13sp",
+            font_size="12sp",
             always_release=True
         )
         btn_fork.bind(on_release=lambda *a, d=descriptor: self.on_fork(d))
         actions.add_widget(btn_fork)
 
         btn_pub = Button(
-            text="☁️",
-            size_hint_x=None,
-            width=dp(44),
+            text="PUB",
+            size_hint_x=0.16,
             background_normal="",
             background_color=(0.18, 0.25, 0.4, 1.0),
             color=(0.3, 0.8, 1.0, 1.0),
             bold=True,
-            font_size="16sp",
+            font_size="12sp",
             always_release=True
         )
         btn_pub.bind(on_release=lambda *a, d=descriptor: self.on_publish(d) if self.on_publish else None)
@@ -686,12 +681,12 @@ class LauncherScreen(Screen):
         nav_bar.bind(size=self._update_nav_rect, pos=self._update_nav_rect)
 
         lbl_logo = Label(
-            text="🌌 OPENHUB",
+            text="OPENHUB",
             font_size="18sp",
             bold=True,
             color=ColorSystem.PRIMARY,
             size_hint_x=None,
-            width=dp(110),
+            width=dp(95),
             halign='left',
             valign='middle'
         )
@@ -699,21 +694,35 @@ class LauncherScreen(Screen):
         nav_bar.add_widget(lbl_logo)
 
         btn_agent = Button(
-            text="💬 AGENT",
-            size_hint_x=0.35,
+            text="AGENT",
+            size_hint_x=0.30,
             background_normal="",
             background_color=(0.54, 0.36, 0.96, 0.9),
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="12sp",
+            font_size="13sp",
             always_release=True
         )
         btn_agent.bind(on_release=lambda x: setattr(self.manager, 'current', 'agent'))
         nav_bar.add_widget(btn_agent)
 
         btn_forge = Button(
-            text="⚡ FORGE",
-            size_hint_x=0.35,
+            text="FORGE",
+            size_hint_x=0.30,
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=ColorSystem.TEXT_PRIMARY,
+            bold=True,
+            font_size="13sp",
+            always_release=True
+        )
+        btn_forge.bind(on_release=lambda x: setattr(self.manager, 'current', 'forge'))
+        nav_bar.add_widget(btn_forge)
+
+        self.btn_update = Button(
+            text="SYNC",
+            size_hint_x=None,
+            width=dp(54),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
@@ -721,32 +730,18 @@ class LauncherScreen(Screen):
             font_size="12sp",
             always_release=True
         )
-        btn_forge.bind(on_release=lambda x: setattr(self.manager, 'current', 'forge'))
-        nav_bar.add_widget(btn_forge)
-
-        self.btn_update = Button(
-            text="⚙️",
-            size_hint_x=None,
-            width=dp(42),
-            background_normal="",
-            background_color=ColorSystem.SURFACE_HOVER,
-            color=ColorSystem.TEXT_PRIMARY,
-            bold=True,
-            font_size="15sp",
-            always_release=True
-        )
         self.btn_update.bind(on_release=self.on_nav_update_pressed)
         nav_bar.add_widget(self.btn_update)
 
         btn_refresh = Button(
-            text="🔄",
+            text="REFRESH",
             size_hint_x=None,
-            width=dp(42),
+            width=dp(72),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="15sp",
+            font_size="11sp",
             always_release=True
         )
         btn_refresh.bind(on_release=lambda x: self.app_manager.refresh_modules())
@@ -827,17 +822,17 @@ class LauncherScreen(Screen):
         self.create_panel.add_widget(self.lbl_create_status)
 
         # Category Filter Row
-        self.cat_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(48), spacing=dp(8))
-        self.categories = ["All", "🌐 Community", "Tools", "Field", "Agents"]
+        self.cat_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(48), spacing=dp(6))
+        self.categories = ["ALL", "HUB", "TOOLS", "FIELD", "AGENTS"]
         self.cat_btns = {}
         for cat in self.categories:
             b = Button(
                 text=cat,
                 background_normal="",
-                background_color=ColorSystem.PRIMARY if cat == "All" else ColorSystem.SURFACE,
-                color=ColorSystem.BG_DARK if cat == "All" else ColorSystem.TEXT_MUTED,
+                background_color=ColorSystem.PRIMARY if cat == "ALL" else ColorSystem.SURFACE,
+                color=ColorSystem.BG_DARK if cat == "ALL" else ColorSystem.TEXT_MUTED,
                 bold=True,
-                font_size="13sp",
+                font_size="12sp",
                 always_release=True
             )
             b.bind(on_release=lambda inst, c=cat: self.set_category_filter(c))
@@ -867,26 +862,26 @@ class LauncherScreen(Screen):
             self.lbl_create_status.text = "Please enter what tool you want to create."
             return
         
-        self.lbl_create_status.text = f"🤖 Generating '{prompt}'..."
-        self.btn_create.text = "⏳ ..."
+        self.lbl_create_status.text = f"Generating '{prompt}'..."
+        self.btn_create.text = "WAIT"
         self.current_generating_prompt = prompt
         self.forge.generate(prompt)
 
     def on_forge_generated_module(self, instance, action, code, explanation):
         if action != "generate":
             return
-        self.btn_create.text = "⚡ CREATE"
+        self.btn_create.text = "CREATE"
         prompt_text = getattr(self, 'current_generating_prompt', 'tool')
         self.txt_prompt.text = ""
-        self.lbl_create_status.text = f"✨ Created: {explanation}"
+        self.lbl_create_status.text = f"Created: {explanation}"
 
         desc = self.app_manager.module_mgr.create_scratch(code, prompt=prompt_text)
         Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
         Clock.schedule_once(lambda dt, d=desc: self.app_manager.launch_module(d), 0.05)
 
     def on_forge_error(self, instance, action, error_msg):
-        self.btn_create.text = "⚡ CREATE"
-        self.lbl_create_status.text = f"❌ Error: {error_msg}"
+        self.btn_create.text = "CREATE"
+        self.lbl_create_status.text = f"Error: {error_msg}"
 
     def update_all_modules(self, permanent, scratch):
         self.permanent_tools = permanent
@@ -894,7 +889,7 @@ class LauncherScreen(Screen):
         self.rebuild_views()
 
     def set_category_filter(self, category):
-        if category == "🌐 Community":
+        if category == "HUB":
             CommunityHubModal(self.app_manager).open()
             return
 

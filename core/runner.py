@@ -55,7 +55,7 @@ class ModuleLoader:
         except Exception as e:
             raise RuntimeError(f"Error executing module code '{entrypoint}': {e}")
 
-        # Search for OpenHubModule first
+        # 1. Search for OpenHubModule first (Standard Architecture)
         if hasattr(module, "OpenHubModule"):
             cls = getattr(module, "OpenHubModule")
             instance = cls()
@@ -66,24 +66,44 @@ class ModuleLoader:
                     print(f"[ModuleLoader] Warning during on_load: {e}")
             return instance
 
-        # Search for any Widget subclass
-        for name, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) and issubclass(obj, Widget) and obj != Widget and obj != BoxLayout:
-                instance = obj()
-                if hasattr(instance, "on_load"):
-                    try:
-                        instance.on_load(host_api)
-                    except Exception:
-                        pass
-                return instance
-
-        # Search for Kivy App subclass (like in wrapper_old.py)
+        # 2. Search for Kivy App subclass (like standalone scripts)
         for name, obj in inspect.getmembers(module):
             if inspect.isclass(obj) and issubclass(obj, App) and obj != App:
-                app_instance = obj()
-                if hasattr(app_instance, "build"):
-                    root_widget = app_instance.build()
-                    return root_widget
+                try:
+                    app_instance = obj()
+                    # Provide dummy root if script references self.root during build
+                    class DummyRoot:
+                        width = 800
+                        height = 1200
+                    app_instance.root = DummyRoot()
+                    if hasattr(app_instance, "build"):
+                        root_widget = app_instance.build()
+                        if root_widget is not None:
+                            if hasattr(root_widget, "on_load"):
+                                try:
+                                    root_widget.on_load(host_api)
+                                except Exception:
+                                    pass
+                            return root_widget
+                except Exception as e:
+                    print(f"[ModuleLoader] App.build() error: {e}")
+
+        # 3. Search for any Widget subclass
+        for name, obj in inspect.getmembers(module):
+            if inspect.isclass(obj) and issubclass(obj, Widget) and obj != Widget and obj != BoxLayout:
+                try:
+                    instance = obj()
+                    if hasattr(instance, "on_load"):
+                        try:
+                            instance.on_load(host_api)
+                        except Exception:
+                            pass
+                    # Wrap inside a full-screen BoxLayout container
+                    container = BoxLayout(orientation='vertical')
+                    container.add_widget(instance)
+                    return container
+                except Exception as e:
+                    print(f"[ModuleLoader] Widget instantiation error: {e}")
 
         # Fallback if no widget found
         box = BoxLayout(orientation='vertical', padding=20)

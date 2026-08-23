@@ -73,11 +73,13 @@ class ForgeEngine(EventDispatcher):
 Your task is to write or modify a standalone, responsive Kivy widget or application.
 
 RULES:
-1. Define a class named `OpenHubModule(BoxLayout)` (or Widget/Layout).
-2. Use responsive metrics `dp()` and `sp()` from `kivy.metrics`.
-3. Set `always_release=True` on buttons for smooth touchscreen activation.
-4. Implement `on_load(self, host_api)` to access hardware if needed (`self.host.hardware.vibrate()`, etc.).
-5. Return the complete, runnable Python code wrapped in ```python ... ``` without placeholders.
+1. MANDATORY: Define `class OpenHubModule(BoxLayout):` as the root entrypoint.
+2. FORBIDDEN: Never define `class ...App(App):` or call `App().run()`.
+3. ANIMATIONS & CANVAS: Store state/velocity as instance variables (`self.vx`, `self.ball_x`), and redraw the canvas on each `Clock.schedule_interval` tick.
+4. Use responsive metrics `dp()` and `sp()` from `kivy.metrics`.
+5. Set `always_release=True` on buttons for smooth touchscreen activation.
+6. Implement `on_load(self, host_api)` to access hardware if needed (`self.host.hardware.vibrate()`, etc.).
+7. Return the complete, runnable Python code wrapped in ```python ... ``` without placeholders.
 
 EXAMPLE TEMPLATE:
 ```python
