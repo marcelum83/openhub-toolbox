@@ -1,0 +1,14 @@
+{
+  "id": "bouncing_ball",
+  "name": "Kinetic Physics & Gravity Ball",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Experiments",
+  "description": "Interactive kinetic ball physics simulation with accelerometer tilt steering, touch throwing, gravity & haptic collision pulses.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "sensors:accelerometer",
+    "feedback:haptics"
+  ],
+  "trust_level": "trusted"
+}
