@@ -171,15 +171,26 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                     sys_prompt += "\n\nWhen asked to build or write an OpenHub tool or application, output complete runnable Kivy Python code in ```python ... ``` with class OpenHubModule(BoxLayout)."
 
                     from openai import OpenAI
+                    messages = [
+                        {"role": "system", "content": sys_prompt},
+                        {"role": "user", "content": prompt}
+                    ]
+
+                    # Auto Web Search Hook for live queries (e.g. "search the web for raspberry pi in hereford")
+                    if any(k in prompt.lower() for k in ["search", "web", "google", "find", "buy", "near", "hereford", "price", "weather", "latest"]):
+                        try:
+                            from tools import web_search
+                            s_res = web_search.execute(query=prompt)
+                            messages.append({"role": "system", "content": f"### REAL-TIME WEB SEARCH RESULTS ###\n{s_res}"})
+                        except Exception as ws_e:
+                            print(f"[SimpleAgent] Web search hook notice: {ws_e}")
+
                     client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
                     conv_id = simple_agent.create_conversation()
 
                     resp = client.chat.completions.create(
                         model=model,
-                        messages=[
-                            {"role": "system", "content": sys_prompt},
-                            {"role": "user", "content": prompt}
-                        ],
+                        messages=messages,
                         temperature=0.4
                     )
                     reply = resp.choices[0].message.content
