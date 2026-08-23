@@ -171,13 +171,27 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                     sys_prompt += "\n\nWhen asked to build or write an OpenHub tool or application, output complete runnable Kivy Python code in ```python ... ``` with class OpenHubModule(BoxLayout)."
 
                     from openai import OpenAI
-                    messages = [
-                        {"role": "system", "content": sys_prompt},
-                        {"role": "user", "content": prompt}
-                    ]
+                    history = data.get("history", [])
+                    conv_id = data.get("conversation_id")
+                    if not conv_id:
+                        conv_id = simple_agent.create_conversation()
+
+                    messages = [{"role": "system", "content": sys_prompt}]
+                    
+                    if history:
+                        for h in history:
+                            r = h.get("role")
+                            c = h.get("content")
+                            if r in ["user", "assistant"] and c:
+                                messages.append({"role": r, "content": c})
+                        # If the current prompt is not already the last item in history, append it
+                        if not (history and history[-1].get("role") == "user" and history[-1].get("content") == prompt):
+                            messages.append({"role": "user", "content": prompt})
+                    else:
+                        messages.append({"role": "user", "content": prompt})
 
                     # Auto Web Search Hook for live queries (e.g. "search the web for raspberry pi in hereford")
-                    if any(k in prompt.lower() for k in ["search", "web", "google", "find", "buy", "near", "hereford", "price", "weather", "latest"]):
+                    if any(k in prompt.lower() for k in ["search", "web", "google", "find", "buy", "near", "hereford", "price", "weather", "latest", "gigs", "events", "music"]):
                         try:
                             from tools import web_search
                             s_res = web_search.execute(query=prompt)
@@ -186,7 +200,6 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                             print(f"[SimpleAgent] Web search hook notice: {ws_e}")
 
                     client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-                    conv_id = simple_agent.create_conversation()
 
                     # Persist user prompt in SimpleAgent database
                     try:

@@ -124,6 +124,7 @@ class AgentChatEngine(EventDispatcher):
         self.server_host = "10.62.206.29"
         self.ollama_port = "11434"
         self.gemini_api_key = ""
+        self.active_conversation_id = None
         self.load_config()
 
     def on_agent_message(self, role, content, tool_code=None, tool_title="Custom Tool"):
@@ -171,7 +172,7 @@ class AgentChatEngine(EventDispatcher):
         self.load_config()
         self.is_busy = True
         
-        # Append user message
+        # Append user message to history
         msg_obj = {"role": "user", "content": user_text.strip(), "tool_code": None}
         self.messages.append(msg_obj)
         self.dispatch('on_agent_message', 'user', user_text.strip(), None, "")
@@ -221,8 +222,15 @@ class AgentChatEngine(EventDispatcher):
 
     def _query_simple_agent(self, user_prompt, sensor_info):
         url = f"http://{self.server_host}:8080/api/simple_agent/chat"
+        # Format full conversation history (up to last 10 messages)
+        history = []
+        for m in self.messages[-10:]:
+            history.append({"role": m["role"], "content": m["content"]})
+
         payload = json.dumps({
             "prompt": user_prompt,
+            "history": history,
+            "conversation_id": self.active_conversation_id,
             "sensor_context": sensor_info,
             "model": self.current_model
         }).encode('utf-8')
@@ -230,6 +238,8 @@ class AgentChatEngine(EventDispatcher):
             req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=40) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
+                if "conversation_id" in data and data["conversation_id"]:
+                    self.active_conversation_id = data["conversation_id"]
                 return data.get("response", ""), ""
         except Exception as e:
             return "", f"SimpleAgent API error: {e}"
@@ -316,3 +326,4 @@ class AgentChatEngine(EventDispatcher):
 
     def clear_history(self):
         self.messages = []
+        self.active_conversation_id = None
