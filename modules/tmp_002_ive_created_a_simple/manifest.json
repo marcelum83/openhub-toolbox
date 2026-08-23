@@ -1,0 +1,10 @@
+{
+  "id": "tmp_002_ive_created_a_simple",
+  "name": "Tmp 002 Ive Created A Simple",
+  "version": "1.0.0",
+  "author": "mobile_agent",
+  "category": "Scratch",
+  "description": "Experiment (tmp_002_ive_created_a_simple.py)",
+  "entrypoint": "main.py",
+  "trust_level": "trusted"
+}
