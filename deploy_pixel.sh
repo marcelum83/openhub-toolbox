@@ -58,5 +58,5 @@ echo "=========================================="
 echo "Press Ctrl+C to stop the server."
 echo ""
 
-# Start HTTP Server on all interfaces
-python3 -m http.server "$PORT" --directory bin --bind 0.0.0.0
+# Start OpenHub Cloud Sync & Download Server
+python3 core/sync_server.py

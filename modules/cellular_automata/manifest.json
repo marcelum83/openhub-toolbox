@@ -1,0 +1,13 @@
+{
+  "id": "cellular_automata",
+  "name": "Cellular Automata",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Experiments",
+  "description": "Conway's Game of Life & Viscera CA simulation engine with touch drawing, presets & variable tick speed.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "feedback:haptics"
+  ],
+  "trust_level": "trusted"
+}

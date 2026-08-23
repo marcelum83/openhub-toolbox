@@ -159,3 +159,83 @@ class ModuleManager:
                 f.write(new_code)
         except Exception:
             pass
+
+    def publish_module(self, descriptor, server_host="10.62.206.29:8080", callback=None):
+        """Asynchronously publishes a tool to the Central OpenHub & GitHub Repository."""
+        def _worker():
+            try:
+                import urllib.request
+                from kivy.clock import Clock
+                code = self.read_code(descriptor)
+                url = f"http://{server_host}/api/modules/publish"
+                payload = json.dumps({
+                    "id": descriptor.id,
+                    "name": descriptor.name,
+                    "category": descriptor.category,
+                    "description": descriptor.description,
+                    "code": code
+                }).encode('utf-8')
+                req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    if callback:
+                        Clock.schedule_once(lambda dt: callback(True, data.get("repo_url", ""), None), 0)
+            except Exception as e:
+                if callback:
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt, err=e: callback(False, None, str(err)), 0)
+
+        import threading
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def fetch_community_catalog(self, server_host="10.62.206.29:8080", callback=None):
+        """Fetches catalog of modules from the central repository."""
+        def _worker():
+            try:
+                import urllib.request
+                from kivy.clock import Clock
+                url = f"http://{server_host}/api/modules/catalog"
+                req = urllib.request.Request(url, headers={"User-Agent": "OpenHub-Client"})
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    if callback:
+                        Clock.schedule_once(lambda dt: callback(True, data, None), 0)
+            except Exception as e:
+                if callback:
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt, err=e: callback(False, None, str(err)), 0)
+
+        import threading
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def install_community_module(self, mod_id, server_host="10.62.206.29:8080", callback=None):
+        """Downloads a community tool from the central repository into local storage."""
+        def _worker():
+            try:
+                import urllib.request
+                from kivy.clock import Clock
+                url = f"http://{server_host}/api/modules/download/{mod_id}"
+                req = urllib.request.Request(url, headers={"User-Agent": "OpenHub-Client"})
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    manifest = data.get("manifest", {})
+                    code = data.get("code", "")
+                    
+                    target_dir = os.path.join(self.modules_dir, mod_id)
+                    os.makedirs(target_dir, exist_ok=True)
+                    with open(os.path.join(target_dir, "main.py"), "w", encoding="utf-8") as f:
+                        f.write(code)
+                    with open(os.path.join(target_dir, "main.py.txt"), "w", encoding="utf-8") as f:
+                        f.write(code)
+                    with open(os.path.join(target_dir, "manifest.json"), "w", encoding="utf-8") as f:
+                        json.dump(manifest, f, indent=2)
+
+                    if callback:
+                        Clock.schedule_once(lambda dt: callback(True, mod_id, None), 0)
+            except Exception as e:
+                if callback:
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt, err=e: callback(False, None, str(err)), 0)
+
+        import threading
+        threading.Thread(target=_worker, daemon=True).start()
