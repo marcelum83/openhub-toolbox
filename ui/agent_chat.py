@@ -364,8 +364,13 @@ class AgentChatScreen(Screen):
             self.agent.save_config(provider="simple_agent")
             self.btn_provider.text = "🤖 SIMPLE_AGENT"
             self.btn_provider.background_color = (0.95, 0.55, 0.15, 0.9)
-            self.lbl_status.text = "Ready • Connected to ACE-OS SimpleAgent"
+            self.lbl_status.text = "Ready • Connected to ACE-OS SimpleAgent (LAN)"
         elif self.agent.current_provider == "simple_agent":
+            self.agent.save_config(provider="firebase")
+            self.btn_provider.text = "📡 CLOUD TELEPATHY"
+            self.btn_provider.background_color = (0.85, 0.25, 0.75, 0.9)
+            self.lbl_status.text = "Ready • Firebase Cloud Relay ➔ Nexus Studio"
+        elif self.agent.current_provider == "firebase":
             self.agent.save_config(provider="gemini")
             self.btn_provider.text = "⚡ GEMINI CLOUD"
             self.btn_provider.background_color = (0.02, 0.71, 0.83, 0.9)

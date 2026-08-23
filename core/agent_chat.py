@@ -206,6 +206,11 @@ class AgentChatEngine(EventDispatcher):
             if error_text:
                 print(f"[AgentChatEngine] SimpleAgent error ({error_text}), falling back to Ollama...")
                 response_text, error_text = self._query_ollama(user_prompt, sys_context)
+        elif self.current_provider == "firebase":
+            response_text, error_text = self._query_firebase_telepathy(user_prompt, sensor_info)
+            if error_text:
+                print(f"[AgentChatEngine] Firebase Telepathy error ({error_text}), falling back to Gemini...")
+                response_text, error_text = self._query_gemini(user_prompt, sys_context)
         elif self.current_provider == "ollama":
             response_text, error_text = self._query_ollama(user_prompt, sys_context)
             # If Ollama fails, auto-fallback to Gemini if key exists
@@ -219,6 +224,34 @@ class AgentChatEngine(EventDispatcher):
                 response_text, error_text = self._query_ollama(user_prompt, sys_context)
 
         Clock.schedule_once(lambda dt: self._on_worker_finished(response_text, error_text), 0)
+
+    def _query_firebase_telepathy(self, user_prompt, sensor_info):
+        url = "https://firestore.googleapis.com/v1/projects/nexus-ops-2026/databases/(default)/documents/agent_commands"
+        payload = {
+            "fields": {
+                "target_app": {"stringValue": "nexus_studio"},
+                "action": {"stringValue": "prompt"},
+                "status": {"stringValue": "PENDING"},
+                "timestamp": {"integerValue": str(int(time.time() * 1000))},
+                "payload": {
+                    "mapValue": {
+                        "fields": {
+                            "text": {"stringValue": user_prompt},
+                            "sensor_context": {"stringValue": sensor_info}
+                        }
+                    }
+                }
+            }
+        }
+        try:
+            req_data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(url, data=req_data, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                doc_name = data.get("name", "").split("/")[-1]
+                return f"📡 **Command Dispatched via Cloud Telepathy!**\nDoc: `{doc_name}`\nNexus Studio on your PC received this prompt and is executing it in your workspace.", ""
+        except Exception as e:
+            return "", f"Firebase Telepathy error: {e}"
 
     def _query_simple_agent(self, user_prompt, sensor_info):
         url = f"http://{self.server_host}:8080/api/simple_agent/chat"
