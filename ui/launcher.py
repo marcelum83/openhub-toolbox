@@ -1,10 +1,19 @@
 """
-OpenHub Home Launcher (The Deck & Fast Creation Engine)
-Flat GridLayout architecture: every card and section is a direct child with guaranteed touch propagation.
+OpenHub Android-Style Home Screen & Swipe-Up App Drawer
+Features:
+- Android / Pixel-style customizable 4-column Home Screen grid with persistent storage
+- 'At a Glance' live clock, date, and hardware sensor telemetry widget
+- Fixed bottom dock with primary quick-launch shortcuts
+- Swipe-up / tap gesture animated App Drawer with real-time search and category filtering
+- Full Drag & Drop: long-press any app in the drawer or home screen to drag, pin, reorder, or remove
+- Long-press context actions: Launch, Pin/Unpin, Edit Code, Fork, Promote, Publish, Delete
 """
+import time
+import datetime
 from kivy.metrics import dp, sp
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.button import Button
@@ -13,9 +22,14 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
 from kivy.uix.modalview import ModalView
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line, Ellipse
+from kivy.animation import Animation
 from kivy.clock import Clock
+from kivy.core.window import Window
+
 from ui.themes import ColorSystem
+from core.home_layout import HomeLayoutManager
+
 
 class ProgressBarWidget(Widget):
     def __init__(self, **kwargs):
@@ -63,7 +77,6 @@ class UpdateModal(ModalView):
         )
         root.add_widget(lbl_title)
 
-        # Version & Date
         v_str = update_info.get("version", "1.0.0")
         b_date = update_info.get("build_date", "Latest")
         lbl_meta = Label(
@@ -76,7 +89,6 @@ class UpdateModal(ModalView):
         )
         root.add_widget(lbl_meta)
 
-        # Changelog
         changelog = update_info.get("changelog", "Core updates and sensor improvements.")
         lbl_change = Label(
             text=f"What's New:\n{changelog}",
@@ -88,7 +100,6 @@ class UpdateModal(ModalView):
         lbl_change.bind(size=lbl_change.setter('text_size'))
         root.add_widget(lbl_change)
 
-        # Progress Bar & Status Text
         self.progress_bar = ProgressBarWidget(size_hint_y=None, height=dp(12))
         root.add_widget(self.progress_bar)
 
@@ -102,9 +113,7 @@ class UpdateModal(ModalView):
         )
         root.add_widget(self.lbl_status)
 
-        # Action Buttons
         btn_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(52), spacing=dp(10))
-        
         self.btn_install = Button(
             text="⬇️ INSTALL UPDATE",
             background_normal="",
@@ -184,7 +193,6 @@ class SettingsModal(ModalView):
         lbl_title = Label(text="⚙️ SETTINGS & FORGE AI", font_size="18sp", bold=True, color=(0.54, 0.36, 0.96, 1.0), size_hint_y=None, height=dp(30))
         root.add_widget(lbl_title)
 
-        # Server Host
         lbl_host = Label(text="Local Server Address (IP:PORT):", font_size="13sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(20), halign='left')
         lbl_host.bind(size=lbl_host.setter('text_size'))
         root.add_widget(lbl_host)
@@ -192,7 +200,6 @@ class SettingsModal(ModalView):
         self.txt_host = TextInput(text=self.updater.server_host, multiline=False, font_size="15sp", size_hint_y=None, height=dp(42))
         root.add_widget(self.txt_host)
 
-        # Gemini API Key
         lbl_api = Label(text="Gemini API Key (for Live AI Generation):", font_size="13sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(20), halign='left')
         lbl_api.bind(size=lbl_api.setter('text_size'))
         root.add_widget(lbl_api)
@@ -289,7 +296,6 @@ class CommunityHubModal(ModalView):
             self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
         root.bind(size=self._update_bg, pos=self._update_bg)
 
-        # Header
         head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(36), spacing=dp(8))
         lbl_title = Label(text="🌐 COMMUNITY TOOL REGISTRY", font_size="17sp", bold=True, color=(0.02, 0.71, 0.83, 1.0), halign='left')
         lbl_title.bind(size=lbl_title.setter('text_size'))
@@ -311,7 +317,6 @@ class CommunityHubModal(ModalView):
         lbl_desc.bind(size=lbl_desc.setter('text_size'))
         root.add_widget(lbl_desc)
 
-        # Scrollable catalog list
         self.scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
         self.cat_grid = GridLayout(cols=1, spacing=dp(10), size_hint_y=None)
         self.cat_grid.bind(minimum_height=self.cat_grid.setter('height'))
@@ -409,250 +414,343 @@ class CommunityHubModal(ModalView):
             self.lbl_status.text = f"❌ Install error: {error}"
 
 
-class ScratchCard(BoxLayout):
+class AppContextModal(ModalView):
     """
-    Card for disposable scratchpad experiments.
-    Large touch targets: [▶ RUN] [✏️ EDIT] [📑 FORK] [💾 SAVE] [☁️ PUB] [🗑️ DELETE]
+    Android-style long-press context options for an app icon.
     """
-    def __init__(self, descriptor, on_run, on_edit, on_fork, on_save, on_delete, on_publish=None, **kwargs):
-        super().__init__(orientation='vertical', size_hint_y=None, height=dp(140), padding=[dp(12), dp(10), dp(12), dp(10)], spacing=dp(8), **kwargs)
+    def __init__(self, descriptor, is_pinned, launcher_screen, **kwargs):
+        super().__init__(size_hint=(0.88, None), auto_dismiss=True, **kwargs)
         self.descriptor = descriptor
-        self.on_run = on_run
-        self.on_edit = on_edit
-        self.on_fork = on_fork
-        self.on_save = on_save
-        self.on_delete = on_delete
-        self.on_publish = on_publish
+        self.is_pinned = is_pinned
+        self.launcher_screen = launcher_screen
+
+        meta = ColorSystem.get_icon_meta(descriptor.id, descriptor.category, descriptor.is_scratch)
         
-        with self.canvas.before:
-            Color(0.12, 0.10, 0.18, 1.0)
-            self.bg_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[dp(14)])
-            Color(0.54, 0.36, 0.96, 0.6)
-            self.border_rect = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(14)), width=1.0)
-        self.bind(size=self._update_rects, pos=self._update_rects)
+        # Calculate dynamic height
+        num_buttons = 4 + (1 if descriptor.is_scratch else 0)
+        self.height = dp(80 + num_buttons * 48)
 
-        # Header Row
-        head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(8))
-        lbl_title = Label(
-            text=f"🧪 {descriptor.name}",
-            font_size="18sp",
-            bold=True,
-            color=(0.95, 0.95, 0.97, 1),
-            halign='left',
-            valign='middle'
-        )
-        lbl_title.bind(size=lbl_title.setter('text_size'))
-        head.add_widget(lbl_title)
-        
-        lbl_tag = Label(text="DRAFT", font_size="12sp", size_hint_x=None, width=dp(70), color=ColorSystem.SECONDARY, bold=True)
-        head.add_widget(lbl_tag)
-        self.add_widget(head)
+        root = BoxLayout(orientation='vertical', padding=dp(16), spacing=dp(8))
+        with root.canvas.before:
+            Color(0.10, 0.10, 0.15, 0.98)
+            self.bg_rect = RoundedRectangle(size=root.size, pos=root.pos, radius=[dp(18)])
+            Color(*meta["border"])
+            self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
+        root.bind(size=self._update_bg, pos=self._update_bg)
 
-        # Action Buttons Row
-        self.actions_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50), spacing=dp(5))
-        
-        btn_run = Button(
-            text="▶ RUN",
-            size_hint_x=0.26,
-            background_normal="",
-            background_color=ColorSystem.SUCCESS,
-            color=(1, 1, 1, 1),
-            bold=True,
-            font_size="13sp",
-            always_release=True
-        )
-        btn_run.bind(on_release=lambda *a, d=descriptor: self.on_run(d))
-        self.actions_box.add_widget(btn_run)
+        # Header with App Icon & Name
+        head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(46), spacing=dp(10))
+        lbl_icon = Label(text=meta["icon"], font_size="24sp", size_hint_x=None, width=dp(40))
+        head.add_widget(lbl_icon)
 
-        btn_edit = Button(
-            text="CODE",
-            size_hint_x=0.18,
-            background_normal="",
-            background_color=ColorSystem.SURFACE_HOVER,
-            color=ColorSystem.TEXT_PRIMARY,
-            bold=True,
-            font_size="12sp",
-            always_release=True
-        )
-        btn_edit.bind(on_release=lambda *a, d=descriptor: self.on_edit(d))
-        self.actions_box.add_widget(btn_edit)
+        v_head = BoxLayout(orientation='vertical')
+        lbl_name = Label(text=descriptor.name, font_size="16sp", bold=True, color=ColorSystem.TEXT_PRIMARY, halign='left')
+        lbl_name.bind(size=lbl_name.setter('text_size'))
+        v_head.add_widget(lbl_name)
 
-        btn_fork = Button(
-            text="FORK",
-            size_hint_x=0.18,
-            background_normal="",
-            background_color=ColorSystem.SURFACE_HOVER,
-            color=ColorSystem.TEXT_PRIMARY,
-            bold=True,
-            font_size="12sp",
-            always_release=True
-        )
-        btn_fork.bind(on_release=lambda *a, d=descriptor: self.on_fork(d))
-        self.actions_box.add_widget(btn_fork)
-
-        btn_save = Button(
-            text="SAVE",
-            size_hint_x=0.18,
-            background_normal="",
-            background_color=ColorSystem.PRIMARY,
-            color=ColorSystem.BG_DARK,
-            bold=True,
-            font_size="12sp",
-            always_release=True
-        )
-        btn_save.bind(on_release=lambda *a, d=descriptor: self.on_save(d))
-        self.actions_box.add_widget(btn_save)
-
-        btn_pub = Button(
-            text="PUB",
-            size_hint_x=0.16,
-            background_normal="",
-            background_color=(0.18, 0.25, 0.4, 1.0),
-            color=(0.3, 0.8, 1.0, 1.0),
-            bold=True,
-            font_size="12sp",
-            always_release=True
-        )
-        btn_pub.bind(on_release=lambda *a, d=descriptor: self.on_publish(d) if self.on_publish else None)
-        self.actions_box.add_widget(btn_pub)
-
-        btn_del = Button(
-            text="DEL",
-            size_hint_x=0.16,
-            background_normal="",
-            background_color=(0.35, 0.1, 0.1, 1),
-            color=ColorSystem.DANGER,
-            bold=True,
-            font_size="12sp",
-            always_release=True
-        )
-        btn_del.bind(on_release=lambda *a, d=descriptor: self.on_delete(d))
-        self.actions_box.add_widget(btn_del)
-
-        self.add_widget(self.actions_box)
-
-    def _update_rects(self, instance, value):
-        self.bg_rect.pos = instance.pos
-        self.bg_rect.size = instance.size
-        self.border_rect.rounded_rectangle = (instance.x, instance.y, instance.width, instance.height, dp(14))
-
-
-class PermanentToolCard(BoxLayout):
-    """
-    Card for established permanent tools.
-    Mirrors ScratchCard layout for reliable mobile touch propagation.
-    """
-    def __init__(self, descriptor, on_run, on_edit, on_fork, on_publish=None, **kwargs):
-        super().__init__(orientation='vertical', size_hint_y=None, height=dp(130), padding=[dp(12), dp(10), dp(12), dp(10)], spacing=dp(8), **kwargs)
-        self.descriptor = descriptor
-        self.on_run = on_run
-        self.on_edit = on_edit
-        self.on_fork = on_fork
-        self.on_publish = on_publish
-        
-        with self.canvas.before:
-            Color(*ColorSystem.SURFACE)
-            self.bg_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[dp(14)])
-            Color(*ColorSystem.SURFACE_BORDER)
-            self.border_rect = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(14)), width=1.0)
-        self.bind(size=self._update_rects, pos=self._update_rects)
-
-        cat_emojis = {
-            "Tools": "•",
-            "Field": "•",
-            "Agents": "•",
-            "Creative": "•",
-            "Experiments": "•"
-        }
-        emoji = cat_emojis.get(descriptor.category, "•")
-
-        head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(8))
-        lbl_title = Label(
-            text=f"{descriptor.name}",
-            font_size="18sp",
-            bold=True,
-            color=ColorSystem.TEXT_PRIMARY,
-            halign='left',
-            valign='middle'
-        )
-        lbl_title.bind(size=lbl_title.setter('text_size'))
-        head.add_widget(lbl_title)
-        
-        lbl_cat = Label(
-            text=f"[{descriptor.category.upper()}]",
-            font_size="12sp",
-            size_hint_x=None,
-            width=dp(90),
-            color=ColorSystem.PRIMARY,
-            halign='right',
-            valign='middle',
-            bold=True
-        )
+        lbl_cat = Label(text=f"{descriptor.category.upper()} • {'Draft' if descriptor.is_scratch else 'Permanent'}", font_size="11sp", color=ColorSystem.TEXT_MUTED, halign='left')
         lbl_cat.bind(size=lbl_cat.setter('text_size'))
-        head.add_widget(lbl_cat)
-        self.add_widget(head)
+        v_head.add_widget(lbl_cat)
+        head.add_widget(v_head)
+        root.add_widget(head)
 
-        # Quick Actions Row
-        actions = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50), spacing=dp(6))
-        
+        # Action: Launch
         btn_run = Button(
-            text="▶ RUN TOOL",
-            size_hint_x=0.46,
+            text="▶ Launch Tool",
+            size_hint_y=None,
+            height=dp(40),
             background_normal="",
             background_color=ColorSystem.SUCCESS,
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="14sp",
-            always_release=True
+            font_size="14sp"
         )
-        btn_run.bind(on_release=lambda *a, d=descriptor: self.on_run(d))
-        actions.add_widget(btn_run)
+        btn_run.bind(on_release=self._action_run)
+        root.add_widget(btn_run)
 
+        # Action: Pin / Unpin from Home
+        pin_text = "🗑️ Remove from Home Screen" if is_pinned else "📌 Pin to Home Screen"
+        pin_color = (0.35, 0.15, 0.15, 1.0) if is_pinned else ColorSystem.PRIMARY
+        btn_pin = Button(
+            text=pin_text,
+            size_hint_y=None,
+            height=dp(40),
+            background_normal="",
+            background_color=pin_color,
+            color=(1, 1, 1, 1) if is_pinned else ColorSystem.BG_DARK,
+            bold=True,
+            font_size="13sp"
+        )
+        btn_pin.bind(on_release=self._action_toggle_pin)
+        root.add_widget(btn_pin)
+
+        # Action: Edit Code in Forge
         btn_edit = Button(
-            text="CODE",
-            size_hint_x=0.20,
+            text="✏️ Edit Code in Forge",
+            size_hint_y=None,
+            height=dp(40),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="12sp",
-            always_release=True
+            font_size="13sp"
         )
-        btn_edit.bind(on_release=lambda *a, d=descriptor: self.on_edit(d))
-        actions.add_widget(btn_edit)
+        btn_edit.bind(on_release=self._action_edit)
+        root.add_widget(btn_edit)
 
+        # Action: Fork
         btn_fork = Button(
-            text="FORK",
-            size_hint_x=0.18,
+            text="📑 Fork to Scratchpad",
+            size_hint_y=None,
+            height=dp(40),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="12sp",
-            always_release=True
+            font_size="13sp"
         )
-        btn_fork.bind(on_release=lambda *a, d=descriptor: self.on_fork(d))
-        actions.add_widget(btn_fork)
+        btn_fork.bind(on_release=self._action_fork)
+        root.add_widget(btn_fork)
 
-        btn_pub = Button(
-            text="PUB",
-            size_hint_x=0.16,
-            background_normal="",
-            background_color=(0.18, 0.25, 0.4, 1.0),
-            color=(0.3, 0.8, 1.0, 1.0),
-            bold=True,
-            font_size="12sp",
-            always_release=True
+        # Action: Promote (if scratch)
+        if descriptor.is_scratch:
+            btn_promote = Button(
+                text="💾 Save to Toolbox",
+                size_hint_y=None,
+                height=dp(40),
+                background_normal="",
+                background_color=ColorSystem.SECONDARY,
+                color=(1, 1, 1, 1),
+                bold=True,
+                font_size="13sp"
+            )
+            btn_promote.bind(on_release=self._action_promote)
+            root.add_widget(btn_promote)
+
+        self.add_widget(root)
+
+    def _update_bg(self, inst, val):
+        self.bg_rect.pos = inst.pos
+        self.bg_rect.size = inst.size
+        self.border_rect.rounded_rectangle = (inst.x, inst.y, inst.width, inst.height, dp(18))
+
+    def _action_run(self, *a):
+        self.dismiss()
+        self.launcher_screen.app_manager.launch_module(self.descriptor)
+
+    def _action_toggle_pin(self, *a):
+        self.dismiss()
+        if self.is_pinned:
+            self.launcher_screen.layout_mgr.unpin_app(self.descriptor.id)
+            self.launcher_screen.show_toast(f"Removed '{self.descriptor.name}' from Home")
+        else:
+            self.launcher_screen.layout_mgr.pin_app(self.descriptor.id)
+            self.launcher_screen.show_toast(f"Pinned '{self.descriptor.name}' to Home")
+        self.launcher_screen.rebuild_home_grid()
+
+    def _action_edit(self, *a):
+        self.dismiss()
+        self.launcher_screen.edit_module(self.descriptor)
+
+    def _action_fork(self, *a):
+        self.dismiss()
+        self.launcher_screen.fork_module(self.descriptor)
+
+    def _action_promote(self, *a):
+        self.dismiss()
+        self.launcher_screen.prompt_save_scratch(self.descriptor)
+
+
+class AppIconWidget(BoxLayout):
+    """
+    Native Android-style squircle App Icon with label, tap detection,
+    long-press gesture detection, and drag initiating.
+    """
+    def __init__(self, descriptor=None, system_shortcut=None, launcher_screen=None, is_home=False, **kwargs):
+        super().__init__(orientation='vertical', size_hint=(None, None), size=(dp(82), dp(96)), padding=[dp(4), dp(2), dp(4), dp(2)], spacing=dp(4), **kwargs)
+        self.descriptor = descriptor
+        self.system_shortcut = system_shortcut
+        self.launcher_screen = launcher_screen
+        self.is_home = is_home
+        
+        self.touch_start_time = 0
+        self.touch_start_pos = (0, 0)
+        self.long_press_event = None
+        self.is_dragging = False
+
+        if descriptor:
+            mod_id = descriptor.id
+            name = descriptor.name
+            cat = descriptor.category
+            is_scratch = descriptor.is_scratch
+        else:
+            mod_id = system_shortcut.get("id", "app")
+            name = system_shortcut.get("name", "App")
+            cat = "System"
+            is_scratch = False
+
+        self.mod_id = mod_id
+        self.app_name = name
+        self.meta = ColorSystem.get_icon_meta(mod_id, cat, is_scratch)
+
+        # Icon Squircle Badge Canvas
+        self.icon_badge = Widget(size_hint=(None, None), size=(dp(58), dp(58)), pos_hint={'center_x': 0.5})
+        with self.icon_badge.canvas.before:
+            self.bg_color = Color(*self.meta["bg"])
+            self.bg_rect = RoundedRectangle(size=self.icon_badge.size, pos=self.icon_badge.pos, radius=[dp(18)])
+            self.border_color = Color(*self.meta["border"])
+            self.border_line = Line(rounded_rectangle=(self.icon_badge.x, self.icon_badge.y, self.icon_badge.width, self.icon_badge.height, dp(18)), width=1.2)
+        self.icon_badge.bind(size=self._update_badge, pos=self._update_badge)
+
+        # Emoji / Icon Label inside Badge
+        lbl_char = self.meta["icon"]
+        self.lbl_emoji = Label(
+            text=lbl_char,
+            font_size="28sp",
+            center_x=self.icon_badge.center_x,
+            center_y=self.icon_badge.center_y,
+            size=(dp(58), dp(58)),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5}
         )
-        btn_pub.bind(on_release=lambda *a, d=descriptor: self.on_publish(d) if self.on_publish else None)
-        actions.add_widget(btn_pub)
+        self.icon_badge.add_widget(self.lbl_emoji)
+        self.add_widget(self.icon_badge)
 
-        self.add_widget(actions)
+        # Title Label below Icon
+        self.lbl_title = Label(
+            text=self.app_name,
+            font_size="11sp",
+            color=ColorSystem.TEXT_PRIMARY,
+            size_hint_y=None,
+            height=dp(28),
+            halign='center',
+            valign='top',
+            shorten=True,
+            shorten_from='right',
+            max_lines=2
+        )
+        self.lbl_title.bind(size=self.lbl_title.setter('text_size'))
+        self.add_widget(self.lbl_title)
 
-    def _update_rects(self, instance, value):
-        self.bg_rect.pos = instance.pos
-        self.bg_rect.size = instance.size
-        self.border_rect.rounded_rectangle = (instance.x, instance.y, instance.width, instance.height, dp(14))
+    def _update_badge(self, inst, val):
+        self.bg_rect.pos = inst.pos
+        self.bg_rect.size = inst.size
+        self.border_line.rounded_rectangle = (inst.x, inst.y, inst.width, inst.height, dp(18))
+        if hasattr(self, 'lbl_emoji'):
+            self.lbl_emoji.pos = inst.pos
+            self.lbl_emoji.size = inst.size
+
+    def on_touch_down(self, touch):
+        if not self.collide_point(*touch.pos):
+            return super().on_touch_down(touch)
+        
+        touch.grab(self)
+        self.touch_start_time = time.time()
+        self.touch_start_pos = touch.pos
+        self.is_dragging = False
+
+        # Visual press feedback
+        self.border_color.a = 1.0
+        self.border_line.width = 2.0
+
+        # Schedule Long Press detection (0.38s)
+        self.long_press_event = Clock.schedule_once(lambda dt, t=touch: self._on_long_press(t), 0.38)
+        return True
+
+    def on_touch_move(self, touch):
+        if touch.grab_current is self:
+            dx = abs(touch.pos[0] - self.touch_start_pos[0])
+            dy = abs(touch.pos[1] - self.touch_start_pos[1])
+            
+            # If moved beyond threshold before long-press fires, cancel long-press (user is scrolling)
+            if (dx > dp(12) or dy > dp(12)) and not self.is_dragging:
+                if self.long_press_event:
+                    self.long_press_event.cancel()
+                    self.long_press_event = None
+
+            if self.is_dragging and self.launcher_screen:
+                self.launcher_screen.update_drag_ghost(touch.pos)
+            return True
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        if touch.grab_current is self:
+            touch.ungrab(self)
+            self.border_line.width = 1.2
+            if self.long_press_event:
+                self.long_press_event.cancel()
+                self.long_press_event = None
+
+            if self.is_dragging:
+                self.is_dragging = False
+                if self.launcher_screen:
+                    self.launcher_screen.finish_drag(self, touch.pos)
+                return True
+
+            # If not dragged and released within collision bounds -> Regular Tap Launch!
+            if self.collide_point(*touch.pos):
+                self._on_tap()
+            return True
+        return super().on_touch_up(touch)
+
+    def _on_long_press(self, touch):
+        self.long_press_event = None
+        self.is_dragging = True
+        
+        # Trigger Haptic pulse
+        if self.launcher_screen and self.launcher_screen.app_manager.hardware:
+            self.launcher_screen.app_manager.hardware.vibrate(35)
+
+        if self.launcher_screen:
+            self.launcher_screen.start_drag(self, touch.pos)
+
+    def _on_tap(self):
+        if not self.launcher_screen:
+            return
+        
+        # System shortcut action
+        if self.system_shortcut:
+            s_id = self.system_shortcut.get("id")
+            if s_id == "agent":
+                setattr(self.launcher_screen.manager, 'current', 'agent')
+            elif s_id == "forge":
+                setattr(self.launcher_screen.manager, 'current', 'forge')
+            elif s_id == "settings":
+                self.launcher_screen.on_nav_update_pressed()
+            elif s_id == "hub":
+                CommunityHubModal(self.launcher_screen.app_manager).open()
+            return
+
+        # Dynamic module launch
+        if self.descriptor:
+            self.launcher_screen.app_manager.launch_module(self.descriptor)
+
+
+class FloatingGhostIcon(Widget):
+    """
+    Floating icon visualizer that follows the touch/cursor during drag & drop.
+    """
+    def __init__(self, meta, **kwargs):
+        super().__init__(size_hint=(None, None), size=(dp(68), dp(68)), **kwargs)
+        self.meta = meta
+        with self.canvas:
+            Color(*meta["bg"])
+            self.bg_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[dp(20)])
+            Color(*meta["border"])
+            self.border_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(20)), width=2.0)
+        
+        self.lbl_emoji = Label(
+            text=meta["icon"],
+            font_size="32sp",
+            size=(dp(68), dp(68)),
+            pos=self.pos
+        )
+        self.add_widget(self.lbl_emoji)
+        self.bind(pos=self._update_pos)
+
+    def _update_pos(self, *a):
+        self.bg_rect.pos = self.pos
+        self.border_line.rounded_rectangle = (self.x, self.y, self.width, self.height, dp(20))
+        self.lbl_emoji.pos = self.pos
 
 
 class LauncherScreen(Screen):
@@ -660,185 +758,202 @@ class LauncherScreen(Screen):
         super().__init__(**kwargs)
         self.app_manager = app_manager
         self.forge = app_manager.forge
+        self.layout_mgr = HomeLayoutManager(app_manager.module_mgr.root_dir)
+        
         self.forge.bind(on_forge_success=self.on_forge_generated_module)
         self.forge.bind(on_forge_error=self.on_forge_error)
 
         self.permanent_tools = []
         self.scratch_tools = []
-        self.active_category = "All"
+        self.all_descriptors = {}
+        self.active_category = "ALL"
+        self.drawer_open = False
+        self.active_drag_source = None
+        self.ghost_widget = None
 
-        root = BoxLayout(orientation='vertical', spacing=0)
-        with root.canvas.before:
+        # Root Layout: FloatLayout enables layered Home Screen + Slide-Up Drawer + Drag Overlay
+        self.root_float = FloatLayout()
+        with self.root_float.canvas.before:
             Color(*ColorSystem.BG_DARK)
-            self.bg_rect = Rectangle(size=root.size, pos=root.pos)
-        root.bind(size=self._update_bg, pos=self._update_bg)
+            self.bg_rect = Rectangle(size=self.root_float.size, pos=self.root_float.pos)
+        self.root_float.bind(size=self._update_bg, pos=self._update_bg)
 
-        # 1. Header Bar
-        nav_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(64), padding=[dp(14), dp(8), dp(14), dp(8)], spacing=dp(10))
-        with nav_bar.canvas.before:
-            Color(*ColorSystem.SURFACE)
-            self.nav_rect = Rectangle(size=nav_bar.size, pos=nav_bar.pos)
-        nav_bar.bind(size=self._update_nav_rect, pos=self._update_nav_rect)
-
-        lbl_logo = Label(
-            text="OPENHUB",
-            font_size="18sp",
-            bold=True,
-            color=ColorSystem.PRIMARY,
-            size_hint_x=None,
-            width=dp(95),
-            halign='left',
-            valign='middle'
-        )
-        lbl_logo.bind(size=lbl_logo.setter('text_size'))
-        nav_bar.add_widget(lbl_logo)
-
-        btn_agent = Button(
-            text="AGENT",
-            size_hint_x=0.30,
-            background_normal="",
-            background_color=(0.54, 0.36, 0.96, 0.9),
-            color=(1, 1, 1, 1),
-            bold=True,
-            font_size="13sp",
-            always_release=True
-        )
-        btn_agent.bind(on_release=lambda x: setattr(self.manager, 'current', 'agent'))
-        nav_bar.add_widget(btn_agent)
-
-        btn_forge = Button(
-            text="FORGE",
-            size_hint_x=0.30,
-            background_normal="",
-            background_color=ColorSystem.SURFACE_HOVER,
-            color=ColorSystem.TEXT_PRIMARY,
-            bold=True,
-            font_size="13sp",
-            always_release=True
-        )
-        btn_forge.bind(on_release=lambda x: setattr(self.manager, 'current', 'forge'))
-        nav_bar.add_widget(btn_forge)
-
-        self.btn_update = Button(
-            text="SYNC",
-            size_hint_x=None,
-            width=dp(54),
-            background_normal="",
-            background_color=ColorSystem.SURFACE_HOVER,
-            color=ColorSystem.TEXT_PRIMARY,
-            bold=True,
-            font_size="12sp",
-            always_release=True
-        )
-        self.btn_update.bind(on_release=self.on_nav_update_pressed)
-        nav_bar.add_widget(self.btn_update)
-
-        btn_refresh = Button(
-            text="REFRESH",
-            size_hint_x=None,
-            width=dp(72),
-            background_normal="",
-            background_color=ColorSystem.SURFACE_HOVER,
-            color=ColorSystem.TEXT_PRIMARY,
-            bold=True,
+        # ----------------------------------------------------
+        # LAYER 1: HOME SCREEN (At A Glance + Pinned Grid + Dock)
+        # ----------------------------------------------------
+        self.home_container = BoxLayout(orientation='vertical', size_hint=(1, 1), spacing=0)
+        
+        # 1A. Top Status Bar / Toast
+        self.top_toast_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(34), padding=[dp(16), dp(4), dp(16), dp(4)])
+        self.lbl_toast = Label(
+            text="⚡ NEXUS KERNEL ACTIVE",
             font_size="11sp",
-            always_release=True
-        )
-        btn_refresh.bind(on_release=lambda x: self.app_manager.refresh_modules())
-        nav_bar.add_widget(btn_refresh)
-        root.add_widget(nav_bar)
-
-        # 2. Main Scrollable Container with Flat GridLayout
-        # Optimized for mobile touchscreen responsiveness
-        self.main_scroll = ScrollView(
-            do_scroll_x=False,
-            do_scroll_y=True,
-            scroll_timeout=250,
-            scroll_distance=dp(10),
-            effect_cls='ScrollEffect'
-        )
-        self.content_grid = GridLayout(cols=1, spacing=dp(14), padding=dp(12), size_hint_y=None)
-        self.content_grid.bind(minimum_height=self.content_grid.setter('height'))
-
-        # SECTION A: "WHAT SHALL WE MAKE?" CREATION BOX
-        self.create_panel = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(165), padding=dp(14), spacing=dp(10))
-        with self.create_panel.canvas.before:
-            Color(0.11, 0.11, 0.17, 1.0)
-            self.create_bg = RoundedRectangle(size=self.create_panel.size, pos=self.create_panel.pos, radius=[dp(16)])
-            Color(0.02, 0.71, 0.83, 0.5)
-            self.create_border = Line(rounded_rectangle=(self.create_panel.x, self.create_panel.y, self.create_panel.width, self.create_panel.height, dp(16)), width=1.0)
-        self.create_panel.bind(size=self._update_create_rects, pos=self._update_create_rects)
-
-        lbl_prompt_title = Label(
-            text="✨ What shall we make?",
-            font_size="18sp",
             bold=True,
             color=ColorSystem.PRIMARY,
+            halign='center'
+        )
+        self.top_toast_bar.add_widget(self.lbl_toast)
+        self.home_container.add_widget(self.top_toast_bar)
+
+        # 1B. At A Glance Widget (Clock, Date, Live Telemetry)
+        self.glance_box = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(100), padding=[dp(20), dp(4), dp(20), dp(4)], spacing=dp(2))
+        
+        self.lbl_time = Label(
+            text="12:00",
+            font_size="38sp",
+            bold=True,
+            color=ColorSystem.TEXT_PRIMARY,
             size_hint_y=None,
-            height=dp(26),
+            height=dp(46),
             halign='left'
         )
-        lbl_prompt_title.bind(size=lbl_prompt_title.setter('text_size'))
-        self.create_panel.add_widget(lbl_prompt_title)
+        self.lbl_time.bind(size=self.lbl_time.setter('text_size'))
+        self.glance_box.add_widget(self.lbl_time)
 
-        prompt_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(56), spacing=dp(10))
-        self.txt_prompt = TextInput(
-            hint_text='e.g. "Solar collector heat calculator"...',
+        self.lbl_date = Label(
+            text="Sunday, August 23  •  OpenHub Ready",
+            font_size="13sp",
+            color=ColorSystem.TEXT_MUTED,
+            size_hint_y=None,
+            height=dp(20),
+            halign='left'
+        )
+        self.lbl_date.bind(size=self.lbl_date.setter('text_size'))
+        self.glance_box.add_widget(self.lbl_date)
+
+        # Quick AI search pill on Home Screen
+        self.ai_pill = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), padding=[dp(10), dp(2), dp(10), dp(2)], spacing=dp(6))
+        with self.ai_pill.canvas.before:
+            Color(*ColorSystem.SURFACE)
+            self.pill_bg = RoundedRectangle(size=self.ai_pill.size, pos=self.ai_pill.pos, radius=[dp(16)])
+            Color(*ColorSystem.SURFACE_BORDER)
+            self.pill_border = Line(rounded_rectangle=(self.ai_pill.x, self.ai_pill.y, self.ai_pill.width, self.ai_pill.height, dp(16)), width=1.0)
+        self.ai_pill.bind(size=lambda inst, v: setattr(self.pill_bg, 'size', inst.size) or setattr(self.pill_bg, 'pos', inst.pos) or setattr(self.pill_border, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(16))))
+        
+        lbl_spark = Label(text="✨", font_size="13sp", size_hint_x=None, width=dp(20))
+        self.ai_pill.add_widget(lbl_spark)
+        
+        lbl_ai_hint = Label(text="Tap to chat with ACE Agent or forge tools...", font_size="12sp", color=ColorSystem.TEXT_HINT, halign='left')
+        lbl_ai_hint.bind(size=lbl_ai_hint.setter('text_size'))
+        self.ai_pill.add_widget(lbl_ai_hint)
+        
+        btn_ai_tap = Button(background_normal="", background_color=(0, 0, 0, 0), size_hint=(1, 1))
+        btn_ai_tap.bind(on_release=lambda x: setattr(self.manager, 'current', 'agent'))
+        self.ai_pill.add_widget(btn_ai_tap)
+        self.glance_box.add_widget(self.ai_pill)
+        
+        self.home_container.add_widget(self.glance_box)
+
+        # 1C. Scrollable Pinned Apps Grid (4 columns)
+        self.home_scroll = ScrollView(do_scroll_x=False, do_scroll_y=True, effect_cls='ScrollEffect')
+        self.home_grid = GridLayout(cols=4, spacing=dp(10), padding=[dp(14), dp(10), dp(14), dp(10)], size_hint_y=None)
+        self.home_grid.bind(minimum_height=self.home_grid.setter('height'))
+        self.home_scroll.add_widget(self.home_grid)
+        self.home_container.add_widget(self.home_scroll)
+
+        # 1D. Fixed Bottom Dock & Swipe Up Handle
+        self.dock_container = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(125), padding=[dp(14), dp(4), dp(14), dp(10)], spacing=dp(6))
+        
+        # Swipe Up Indicator Pill
+        self.swipe_handle = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(26), size_hint_x=None, width=dp(180), pos_hint={'center_x': 0.5})
+        with self.swipe_handle.canvas.before:
+            Color(0.18, 0.18, 0.26, 0.9)
+            self.handle_bg = RoundedRectangle(size=self.swipe_handle.size, pos=self.swipe_handle.pos, radius=[dp(13)])
+        self.swipe_handle.bind(size=lambda inst, v: setattr(self.handle_bg, 'size', inst.size) or setattr(self.handle_bg, 'pos', inst.pos))
+        
+        lbl_handle = Label(text="▲  ALL APPS & TOOLS", font_size="11sp", bold=True, color=ColorSystem.PRIMARY, halign='center')
+        self.swipe_handle.add_widget(lbl_handle)
+        
+        btn_open_drawer = Button(background_normal="", background_color=(0, 0, 0, 0), size_hint=(1, 1))
+        btn_open_drawer.bind(on_release=lambda x: self.toggle_app_drawer(True))
+        self.swipe_handle.add_widget(btn_open_drawer)
+        self.dock_container.add_widget(self.swipe_handle)
+
+        # Dock Icons Capsule
+        self.dock_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(80), padding=[dp(10), dp(6), dp(10), dp(6)], spacing=dp(8))
+        with self.dock_bar.canvas.before:
+            Color(*ColorSystem.DOCK_BG)
+            self.dock_bg = RoundedRectangle(size=self.dock_bar.size, pos=self.dock_bar.pos, radius=[dp(24)])
+            Color(*ColorSystem.SURFACE_BORDER)
+            self.dock_border = Line(rounded_rectangle=(self.dock_bar.x, self.dock_bar.y, self.dock_bar.width, self.dock_bar.height, dp(24)), width=1.2)
+        self.dock_bar.bind(size=lambda inst, v: setattr(self.dock_bg, 'size', inst.size) or setattr(self.dock_bg, 'pos', inst.pos) or setattr(self.dock_border, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(24))))
+        
+        self.dock_container.add_widget(self.dock_bar)
+        self.home_container.add_widget(self.dock_container)
+        
+        self.root_float.add_widget(self.home_container)
+
+        # ----------------------------------------------------
+        # LAYER 2: TOP REMOVE / DROP ZONE (Visible during Drag)
+        # ----------------------------------------------------
+        self.remove_drop_zone = BoxLayout(orientation='horizontal', size_hint=(1, None), height=dp(64), pos_hint={'top': 1}, padding=dp(10), opacity=0)
+        with self.remove_drop_zone.canvas.before:
+            Color(0.85, 0.20, 0.20, 0.95)
+            self.remove_bg = RoundedRectangle(size=self.remove_drop_zone.size, pos=self.remove_drop_zone.pos, radius=[dp(0), dp(0), dp(18), dp(18)])
+        self.remove_drop_zone.bind(size=lambda inst, v: setattr(self.remove_bg, 'size', inst.size) or setattr(self.remove_bg, 'pos', inst.pos))
+        
+        self.lbl_remove_text = Label(text="🗑️ DROP HERE TO REMOVE FROM HOME", font_size="14sp", bold=True, color=(1, 1, 1, 1), halign='center')
+        self.remove_drop_zone.add_widget(self.lbl_remove_text)
+        self.root_float.add_widget(self.remove_drop_zone)
+
+        # ----------------------------------------------------
+        # LAYER 3: APP DRAWER OVERLAY (Slide-up Bottom Sheet)
+        # ----------------------------------------------------
+        self.drawer_overlay = BoxLayout(orientation='vertical', size_hint=(1, 0.94), pos_hint={'x': 0, 'y': -1}, padding=[dp(12), dp(8), dp(12), dp(12)], spacing=dp(8))
+        with self.drawer_overlay.canvas.before:
+            Color(*ColorSystem.DRAWER_BG)
+            self.drawer_bg = RoundedRectangle(size=self.drawer_overlay.size, pos=self.drawer_overlay.pos, radius=[dp(24), dp(24), 0, 0])
+            Color(*ColorSystem.PRIMARY)
+            self.drawer_border = Line(rounded_rectangle=(self.drawer_overlay.x, self.drawer_overlay.y, self.drawer_overlay.width, self.drawer_overlay.height, dp(24), dp(24), 0, 0), width=1.5)
+        self.drawer_overlay.bind(size=lambda inst, v: setattr(self.drawer_bg, 'size', inst.size) or setattr(self.drawer_bg, 'pos', inst.pos) or setattr(self.drawer_border, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(24), dp(24), 0, 0)))
+
+        # Drawer Grab Bar / Close
+        grab_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(24))
+        btn_close_drawer = Button(
+            text="▼ CLOSE ALL APPS",
+            font_size="12sp",
+            bold=True,
+            color=ColorSystem.TEXT_MUTED,
+            background_normal="",
+            background_color=(0, 0, 0, 0),
+            size_hint=(1, 1)
+        )
+        btn_close_drawer.bind(on_release=lambda x: self.toggle_app_drawer(False))
+        grab_box.add_widget(btn_close_drawer)
+        self.drawer_overlay.add_widget(grab_box)
+
+        # Search Bar
+        search_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(46), spacing=dp(8))
+        self.txt_search = TextInput(
+            hint_text='🔍 Search all apps and tools...',
             multiline=False,
             font_size="15sp",
             background_color=ColorSystem.SURFACE,
             foreground_color=ColorSystem.TEXT_PRIMARY,
             hint_text_color=ColorSystem.TEXT_HINT,
             cursor_color=ColorSystem.PRIMARY,
-            padding=[dp(12), dp(14), dp(12), dp(14)]
+            padding=[dp(12), dp(12), dp(12), dp(12)]
         )
-        self.txt_prompt.bind(on_text_validate=self.on_create_prompt_submit)
-        prompt_row.add_widget(self.txt_prompt)
+        self.txt_search.bind(text=self.on_search_query_change)
+        search_box.add_widget(self.txt_search)
 
-        btn_voice = Button(
-            text="🎙️",
+        btn_clear_search = Button(
+            text="✕",
             size_hint_x=None,
-            width=dp(46),
+            width=dp(42),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
-            color=ColorSystem.PRIMARY,
-            bold=True,
-            font_size="16sp",
-            always_release=True
-        )
-        btn_voice.bind(on_release=self.on_voice_create_pressed)
-        prompt_row.add_widget(btn_voice)
-
-        self.btn_create = Button(
-            text="⚡ CREATE",
-            size_hint_x=None,
-            width=dp(105),
-            background_normal="",
-            background_color=ColorSystem.SECONDARY,
-            color=(1, 1, 1, 1),
-            bold=True,
-            font_size="13sp",
-            always_release=True
-        )
-        self.btn_create.bind(on_release=self.on_create_prompt_submit)
-        prompt_row.add_widget(self.btn_create)
-        self.create_panel.add_widget(prompt_row)
-
-        self.lbl_create_status = Label(
-            text="Type any tool idea above to generate and test it instantly.",
-            font_size="13sp",
             color=ColorSystem.TEXT_MUTED,
-            size_hint_y=None,
-            height=dp(22),
-            halign='left'
+            font_size="14sp"
         )
-        self.lbl_create_status.bind(size=self.lbl_create_status.setter('text_size'))
-        self.create_panel.add_widget(self.lbl_create_status)
+        btn_clear_search.bind(on_release=lambda x: setattr(self.txt_search, 'text', ''))
+        search_box.add_widget(btn_clear_search)
+        self.drawer_overlay.add_widget(search_box)
 
-        # Category Filter Row
-        self.cat_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(48), spacing=dp(6))
-        self.categories = ["ALL", "HUB", "TOOLS", "FIELD", "AGENTS"]
-        self.cat_btns = {}
+        # Category Chips
+        self.cat_chips_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(38), spacing=dp(6))
+        self.categories = ["ALL", "TOOLS", "FIELD", "AGENTS", "SCRATCH", "HUB"]
+        self.cat_chip_btns = {}
         for cat in self.categories:
             b = Button(
                 text=cat,
@@ -846,194 +961,274 @@ class LauncherScreen(Screen):
                 background_color=ColorSystem.PRIMARY if cat == "ALL" else ColorSystem.SURFACE,
                 color=ColorSystem.BG_DARK if cat == "ALL" else ColorSystem.TEXT_MUTED,
                 bold=True,
-                font_size="12sp",
-                always_release=True
+                font_size="11sp",
+                size_hint_y=None,
+                height=dp(34)
             )
-            b.bind(on_release=lambda inst, c=cat: self.set_category_filter(c))
-            self.cat_btns[cat] = b
-            self.cat_box.add_widget(b)
+            b.bind(on_release=lambda inst, c=cat: self.set_drawer_category(c))
+            self.cat_chip_btns[cat] = b
+            self.cat_chips_box.add_widget(b)
+        self.drawer_overlay.add_widget(self.cat_chips_box)
 
-        self.main_scroll.add_widget(self.content_grid)
-        root.add_widget(self.main_scroll)
-        self.add_widget(root)
-
-    def _update_bg(self, instance, value):
-        self.bg_rect.pos = instance.pos
-        self.bg_rect.size = instance.size
-
-    def _update_nav_rect(self, instance, value):
-        self.nav_rect.pos = instance.pos
-        self.nav_rect.size = instance.size
-
-    def _update_create_rects(self, instance, value):
-        self.create_bg.pos = instance.pos
-        self.create_bg.size = instance.size
-        self.create_border.rounded_rectangle = (instance.x, instance.y, instance.width, instance.height, dp(16))
-
-    def on_voice_create_pressed(self, *args):
-        try:
-            from core.voice import VoiceBridge
-            self.lbl_create_status.text = "🎙️ Listening... Speak tool idea..."
-            voice = VoiceBridge(on_result_callback=self.on_voice_create_result, on_error_callback=self.on_voice_create_error)
-            voice.start_listening()
-        except Exception as e:
-            self.lbl_create_status.text = f"Voice error: {e}"
-
-    def on_voice_create_result(self, text):
-        self.lbl_create_status.text = f"🎙️ Heard: '{text}'"
-        self.txt_prompt.text = text
-        Clock.schedule_once(lambda dt: self.on_create_prompt_submit(None), 0.3)
-
-    def on_voice_create_error(self, err_msg):
-        self.lbl_create_status.text = f"🎙️ {err_msg}"
-
-    def on_create_prompt_submit(self, instance):
-        prompt = self.txt_prompt.text.strip()
-        if not prompt:
-            self.lbl_create_status.text = "Please enter what tool you want to create."
-            return
+        # Fast AI Creator Box inside Drawer
+        self.forge_pill = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(44), padding=[dp(8), dp(4), dp(8), dp(4)], spacing=dp(6))
+        with self.forge_pill.canvas.before:
+            Color(0.12, 0.10, 0.18, 1.0)
+            self.fp_bg = RoundedRectangle(size=self.forge_pill.size, pos=self.forge_pill.pos, radius=[dp(12)])
+            Color(0.54, 0.36, 0.96, 0.7)
+            self.fp_bdr = Line(rounded_rectangle=(self.forge_pill.x, self.forge_pill.y, self.forge_pill.width, self.forge_pill.height, dp(12)), width=1.0)
+        self.forge_pill.bind(size=lambda inst, v: setattr(self.fp_bg, 'size', inst.size) or setattr(self.fp_bg, 'pos', inst.pos) or setattr(self.fp_bdr, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(12))))
         
-        self.lbl_create_status.text = f"Generating '{prompt}'..."
-        self.btn_create.text = "WAIT"
-        self.current_generating_prompt = prompt
-        self.forge.generate(prompt)
+        self.txt_create_quick = TextInput(
+            hint_text='✨ Quick Create: "e.g. sound pitch graph"...',
+            multiline=False,
+            font_size="13sp",
+            background_color=(0, 0, 0, 0),
+            foreground_color=ColorSystem.TEXT_PRIMARY,
+            hint_text_color=ColorSystem.TEXT_HINT,
+            cursor_color=ColorSystem.SECONDARY,
+            padding=[dp(6), dp(8), dp(6), dp(8)]
+        )
+        self.txt_create_quick.bind(on_text_validate=self.on_quick_create_submit)
+        self.forge_pill.add_widget(self.txt_create_quick)
 
-    def on_forge_generated_module(self, instance, action, code, explanation):
-        if action != "generate":
-            return
-        self.btn_create.text = "CREATE"
-        prompt_text = getattr(self, 'current_generating_prompt', 'tool')
-        self.txt_prompt.text = ""
-        self.lbl_create_status.text = f"Created: {explanation}"
+        self.btn_quick_create = Button(
+            text="⚡ FORGE",
+            size_hint_x=None,
+            width=dp(80),
+            background_normal="",
+            background_color=ColorSystem.SECONDARY,
+            color=(1, 1, 1, 1),
+            bold=True,
+            font_size="11sp"
+        )
+        self.btn_quick_create.bind(on_release=self.on_quick_create_submit)
+        self.forge_pill.add_widget(self.btn_quick_create)
+        self.drawer_overlay.add_widget(self.forge_pill)
 
-        desc = self.app_manager.module_mgr.create_scratch(code, prompt=prompt_text)
-        Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
-        Clock.schedule_once(lambda dt, d=desc: self.app_manager.launch_module(d), 0.05)
+        # Drawer 4-Column Grid of All Modules
+        self.drawer_scroll = ScrollView(do_scroll_x=False, do_scroll_y=True, effect_cls='ScrollEffect')
+        self.drawer_grid = GridLayout(cols=4, spacing=dp(10), padding=[dp(6), dp(8), dp(6), dp(8)], size_hint_y=None)
+        self.drawer_grid.bind(minimum_height=self.drawer_grid.setter('height'))
+        self.drawer_scroll.add_widget(self.drawer_grid)
+        self.drawer_overlay.add_widget(self.drawer_scroll)
 
-    def on_forge_error(self, instance, action, error_msg):
-        self.btn_create.text = "CREATE"
-        self.lbl_create_status.text = f"Error: {error_msg}"
+        self.root_float.add_widget(self.drawer_overlay)
+        self.add_widget(self.root_float)
 
-    def update_all_modules(self, permanent, scratch):
-        self.permanent_tools = permanent
-        self.scratch_tools = scratch
-        self.rebuild_views()
+        # Clock ticks for live clock update
+        Clock.schedule_interval(self._tick_clock, 1.0)
+        self._tick_clock(0)
 
-    def set_category_filter(self, category):
+        # Build initial dock
+        self.rebuild_dock()
+
+    def _update_bg(self, inst, val):
+        self.bg_rect.pos = inst.pos
+        self.bg_rect.size = inst.size
+
+    def _tick_clock(self, dt):
+        now = datetime.datetime.now()
+        self.lbl_time.text = now.strftime("%H:%M")
+        self.lbl_date.text = now.strftime("%A, %B %d")
+
+    def show_toast(self, message):
+        self.lbl_toast.text = message
+
+    def toggle_app_drawer(self, open_drawer):
+        self.drawer_open = open_drawer
+        target_y = 0.0 if open_drawer else -1.0
+        anim = Animation(pos_hint={'x': 0, 'y': target_y}, duration=0.22, t='out_quad')
+        anim.start(self.drawer_overlay)
+        if open_drawer and self.app_manager.hardware:
+            self.app_manager.hardware.vibrate(20)
+
+    def set_drawer_category(self, category):
         if category == "HUB":
             CommunityHubModal(self.app_manager).open()
             return
 
         self.active_category = category
-        for cat, btn in self.cat_btns.items():
+        for cat, btn in self.cat_chip_btns.items():
             if cat == category:
                 btn.background_color = ColorSystem.PRIMARY
                 btn.color = ColorSystem.BG_DARK
             else:
                 btn.background_color = ColorSystem.SURFACE
                 btn.color = ColorSystem.TEXT_MUTED
-        Clock.schedule_once(lambda dt: self.rebuild_views(), 0)
+        self.rebuild_drawer_grid()
 
-    def rebuild_views(self):
-        """Rebuilds the entire flat content grid with exact height calculations."""
-        self.content_grid.clear_widgets()
+    def on_search_query_change(self, inst, text):
+        self.rebuild_drawer_grid(query=text.strip().lower())
 
-        # 1. Top Creation Panel
-        self.content_grid.add_widget(self.create_panel)
+    def update_all_modules(self, permanent, scratch):
+        self.permanent_tools = permanent
+        self.scratch_tools = scratch
+        
+        self.all_descriptors = {}
+        for d in permanent:
+            self.all_descriptors[d.id] = d
+        for d in scratch:
+            self.all_descriptors[d.id] = d
 
-        # 2. Scratch / Live Experiments Shelf
-        if self.scratch_tools:
-            lbl_scratch = Label(
-                text=f"🧪 LIVE EXPERIMENTS & SCRATCH ({len(self.scratch_tools)} Active)",
-                font_size="15sp",
-                bold=True,
-                color=ColorSystem.SECONDARY,
-                size_hint_y=None,
-                height=dp(28),
-                halign='left'
-            )
-            lbl_scratch.bind(size=lbl_scratch.setter('text_size'))
-            self.content_grid.add_widget(lbl_scratch)
+        self.rebuild_home_grid()
+        self.rebuild_drawer_grid()
+        self.rebuild_dock()
 
-            for desc in self.scratch_tools:
-                card = ScratchCard(
-                    desc,
-                    on_run=self.app_manager.launch_module,
-                    on_edit=self.edit_module,
-                    on_fork=self.fork_module,
-                    on_save=self.prompt_save_scratch,
-                    on_delete=self.delete_module,
-                    on_publish=self.publish_module
-                )
-                self.content_grid.add_widget(card)
-
-        # 3. Category Filter Tabs
-        self.content_grid.add_widget(self.cat_box)
-
-        # 4. Permanent Toolbox Shelf
-        lbl_tools = Label(
-            text="🛠️ MY SAVED TOOLS",
-            font_size="15sp",
-            bold=True,
-            color=ColorSystem.PRIMARY,
-            size_hint_y=None,
-            height=dp(28),
-            halign='left'
-        )
-        lbl_tools.bind(size=lbl_tools.setter('text_size'))
-        self.content_grid.add_widget(lbl_tools)
-
-        for desc in self.permanent_tools:
-            if self.active_category != "All" and desc.category != self.active_category:
-                continue
-            card = PermanentToolCard(
-                desc,
-                on_run=self.app_manager.launch_module,
-                on_edit=self.edit_module,
-                on_fork=self.fork_module,
-                on_publish=self.publish_module
-            )
-            self.content_grid.add_widget(card)
-
-    def publish_module(self, descriptor):
-        host = self.app_manager.updater.server_host
-        self.lbl_create_status.text = f"☁️ Publishing '{descriptor.name}' to Central Repository..."
-        def _on_pub(success, url, error):
-            if success:
-                self.lbl_create_status.text = f"✅ Published '{descriptor.name}' to GitHub!"
-                if self.app_manager.hardware:
-                    self.app_manager.hardware.vibrate(50)
+    def rebuild_dock(self):
+        """Builds the 4 primary bottom dock icons."""
+        self.dock_bar.clear_widgets()
+        dock_items = self.layout_mgr.layout_data.get("dock_apps", [])
+        
+        for item in dock_items:
+            i_type = item.get("type", "system")
+            i_id = item.get("id")
+            
+            if i_type == "module" and i_id in self.all_descriptors:
+                desc = self.all_descriptors[i_id]
+                icon_w = AppIconWidget(descriptor=desc, launcher_screen=self, is_home=True)
             else:
-                self.lbl_create_status.text = f"❌ Publish failed: {error}"
-        self.app_manager.module_mgr.publish_module(descriptor, host, _on_pub)
+                icon_w = AppIconWidget(system_shortcut=item, launcher_screen=self, is_home=True)
+            
+            self.dock_bar.add_widget(icon_w)
+
+    def rebuild_home_grid(self):
+        """Renders the pinned apps on the Home Screen grid."""
+        self.home_grid.clear_widgets()
+        pinned_ids = self.layout_mgr.get_pinned_apps()
+        
+        for mod_id in pinned_ids:
+            if mod_id in self.all_descriptors:
+                desc = self.all_descriptors[mod_id]
+                icon_w = AppIconWidget(descriptor=desc, launcher_screen=self, is_home=True)
+                self.home_grid.add_widget(icon_w)
+
+    def rebuild_drawer_grid(self, query=""):
+        """Renders all available tools into the App Drawer grid."""
+        self.drawer_grid.clear_widgets()
+        
+        all_list = self.permanent_tools + self.scratch_tools
+        for desc in all_list:
+            if query and query not in desc.name.lower() and query not in desc.id.lower():
+                continue
+            
+            if self.active_category == "SCRATCH" and not desc.is_scratch:
+                continue
+            elif self.active_category != "ALL" and self.active_category != "SCRATCH":
+                if desc.category.upper() != self.active_category:
+                    continue
+            
+            icon_w = AppIconWidget(descriptor=desc, launcher_screen=self, is_home=False)
+            self.drawer_grid.add_widget(icon_w)
+
+    # ----------------------------------------------------
+    # DRAG & DROP ORCHESTRATION
+    # ----------------------------------------------------
+    def start_drag(self, icon_widget, touch_pos):
+        self.active_drag_source = icon_widget
+        
+        # Show top remove drop zone
+        anim_remove = Animation(opacity=1.0, duration=0.15)
+        anim_remove.start(self.remove_drop_zone)
+
+        # If dragging from drawer, animate drawer down to peek home screen
+        if not icon_widget.is_home and self.drawer_open:
+            Animation(pos_hint={'x': 0, 'y': -0.75}, duration=0.2).start(self.drawer_overlay)
+
+        # Spawn Floating Ghost Icon on root FloatLayout
+        if self.ghost_widget:
+            self.root_float.remove_widget(self.ghost_widget)
+        
+        self.ghost_widget = FloatingGhostIcon(meta=icon_widget.meta)
+        self.ghost_widget.pos = (touch_pos[0] - dp(34), touch_pos[1] - dp(34))
+        self.root_float.add_widget(self.ghost_widget)
+
+    def update_drag_ghost(self, touch_pos):
+        if self.ghost_widget:
+            self.ghost_widget.pos = (touch_pos[0] - dp(34), touch_pos[1] - dp(34))
+
+    def finish_drag(self, icon_widget, touch_pos):
+        # Hide top remove drop zone
+        Animation(opacity=0.0, duration=0.15).start(self.remove_drop_zone)
+        
+        if self.ghost_widget:
+            self.root_float.remove_widget(self.ghost_widget)
+            self.ghost_widget = None
+
+        # Check if dropped onto the Remove bar at top
+        if self.remove_drop_zone.collide_point(*touch_pos):
+            if icon_widget.descriptor and icon_widget.is_home:
+                self.layout_mgr.unpin_app(icon_widget.descriptor.id)
+                self.show_toast(f"Removed '{icon_widget.descriptor.name}' from Home")
+                self.rebuild_home_grid()
+                if self.app_manager.hardware:
+                    self.app_manager.hardware.vibrate(40)
+            return
+
+        # If dragged from drawer onto Home Screen:
+        if not icon_widget.is_home:
+            # Check if dropped over the Home Screen area
+            if touch_pos[1] > dp(130):
+                if icon_widget.descriptor:
+                    self.layout_mgr.pin_app(icon_widget.descriptor.id)
+                    self.show_toast(f"Pinned '{icon_widget.descriptor.name}' to Home Screen")
+                    self.rebuild_home_grid()
+                    if self.app_manager.hardware:
+                        self.app_manager.hardware.vibrate(50)
+            # Restore drawer position or close it
+            self.toggle_app_drawer(False)
+        else:
+            # If dragged on Home Screen without moving to remove, open context menu
+            AppContextModal(icon_widget.descriptor, is_pinned=True, launcher_screen=self).open()
+
+    # ----------------------------------------------------
+    # QUICK AI CREATION & ACTIONS
+    # ----------------------------------------------------
+    def on_quick_create_submit(self, *args):
+        prompt = self.txt_create_quick.text.strip()
+        if not prompt:
+            return
+        
+        self.btn_quick_create.text = "WAIT..."
+        self.show_toast(f"Generating '{prompt}'...")
+        self.current_generating_prompt = prompt
+        self.forge.generate(prompt)
+
+    def on_forge_generated_module(self, instance, action, code, explanation):
+        if action != "generate":
+            return
+        self.btn_quick_create.text = "⚡ FORGE"
+        prompt_text = getattr(self, 'current_generating_prompt', 'tool')
+        self.txt_create_quick.text = ""
+        self.show_toast(f"Created: {explanation}")
+
+        desc = self.app_manager.module_mgr.create_scratch(code, prompt=prompt_text)
+        self.layout_mgr.pin_app(desc.id, index=0)
+        Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
+        Clock.schedule_once(lambda dt, d=desc: self.app_manager.launch_module(d), 0.05)
+
+    def on_forge_error(self, instance, action, error_msg):
+        self.btn_quick_create.text = "⚡ FORGE"
+        self.show_toast(f"Forge error: {error_msg}")
 
     def edit_module(self, descriptor):
-        print(f"[Launcher] edit_module called for: {descriptor.name} ({descriptor.entrypoint})")
         try:
             code = self.app_manager.module_mgr.read_code(descriptor)
             forge_screen = self.manager.get_screen('forge')
             forge_screen.load_descriptor_for_editing(descriptor, code)
-            Clock.schedule_once(lambda dt: setattr(self.manager, 'current', 'forge'), 0)
+            setattr(self.manager, 'current', 'forge')
         except Exception as e:
-            err_msg = f"Error opening code: {e}"
-            print(f"[Launcher] {err_msg}")
-            import traceback
-            traceback.print_exc()
-            self.lbl_create_status.text = f"❌ {err_msg}"
+            self.show_toast(f"❌ Edit error: {e}")
 
     def fork_module(self, descriptor):
-        print(f"[Launcher] fork_module called for: {descriptor.name}")
         try:
             new_desc = self.app_manager.module_mgr.fork(descriptor)
-            self.lbl_create_status.text = f"📑 Forked '{descriptor.name}' as '{new_desc.name}'"
+            self.show_toast(f"📑 Forked '{descriptor.name}'")
+            self.layout_mgr.pin_app(new_desc.id, index=0)
             Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
             Clock.schedule_once(lambda dt, d=new_desc: self.app_manager.launch_module(d), 0.05)
         except Exception as e:
-            err_msg = f"Fork error: {e}"
-            print(f"[Launcher] {err_msg}")
-            import traceback
-            traceback.print_exc()
-            self.lbl_create_status.text = f"❌ {err_msg}"
+            self.show_toast(f"❌ Fork error: {e}")
 
     def prompt_save_scratch(self, descriptor):
         content = BoxLayout(orientation='vertical', spacing=dp(12), padding=dp(16))
@@ -1049,7 +1244,7 @@ class LauncherScreen(Screen):
             final_name = name_in.text.strip() or descriptor.name
             try:
                 self.app_manager.module_mgr.promote_to_permanent(descriptor, final_name)
-                self.lbl_create_status.text = f"💾 Saved '{final_name}' to Toolbox"
+                self.show_toast(f"💾 Saved '{final_name}' to Toolbox")
                 Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
             except Exception as e:
                 print(f"[Launcher] Error promoting module: {e}")
@@ -1060,35 +1255,16 @@ class LauncherScreen(Screen):
         content.add_widget(btn_row)
         popup.open()
 
-    def delete_module(self, descriptor):
-        try:
-            self.app_manager.module_mgr.delete(descriptor)
-            self.lbl_create_status.text = f"🗑️ Deleted '{descriptor.name}'"
-            Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
-        except Exception as e:
-            print(f"[Launcher] Error deleting module: {e}")
-
     def on_update_check_result(self, has_update, update_info, error):
-        """Called asynchronously when server update check finishes."""
         if error:
-            print(f"[Launcher] Update check notice: {error}")
             return
-        
         if has_update and update_info:
-            self.btn_update.text = "🚀 UPDATE"
-            self.btn_update.background_color = (0.15, 0.68, 0.38, 1.0)
-            self.btn_update.color = (1, 1, 1, 1)
-            # Show update modal
             modal = UpdateModal(update_info, self.app_manager.updater)
             modal.open()
-        else:
-            self.btn_update.text = "⚙️ SYNC"
-            self.btn_update.background_color = ColorSystem.SURFACE_HOVER
-            self.btn_update.color = ColorSystem.TEXT_PRIMARY
 
     def on_nav_update_pressed(self, *args):
         updater = self.app_manager.updater
-        if updater.latest_update_info and self.btn_update.text == "🚀 UPDATE":
+        if updater.latest_update_info:
             UpdateModal(updater.latest_update_info, updater).open()
         else:
             SettingsModal(updater, self.on_update_check_result, app_manager=self.app_manager).open()

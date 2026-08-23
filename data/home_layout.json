@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "pinned_apps": [
+    "metronome",
+    "converter",
+    "compass",
+    "stopwatch",
+    "decibel",
+    "monster_battle",
+    "nexus_remote",
+    "flashlight",
+    "lux_meter",
+    "pitch_tuner",
+    "reaction",
+    "cellular_automata"
+  ],
+  "dock_apps": [
+    {
+      "id": "agent",
+      "type": "system",
+      "name": "Agent",
+      "icon": "\ud83e\udde0"
+    },
+    {
+      "id": "forge",
+      "type": "system",
+      "name": "Forge",
+      "icon": "\u26a1"
+    },
+    {
+      "id": "nexus_remote",
+      "type": "module",
+      "name": "Remote",
+      "icon": "\ud83d\udda5\ufe0f"
+    },
+    {
+      "id": "settings",
+      "type": "system",
+      "name": "Sync",
+      "icon": "\u2699\ufe0f"
+    }
+  ]
+}

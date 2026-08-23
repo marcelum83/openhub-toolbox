@@ -111,7 +111,10 @@ class OpenHubApp(MDApp):
             import traceback
             traceback.print_exc()
             if hasattr(self, 'launcher_screen') and self.launcher_screen:
-                self.launcher_screen.lbl_create_status.text = f"❌ {err_msg}"
+                if hasattr(self.launcher_screen, 'show_toast'):
+                    self.launcher_screen.show_toast(f"❌ {err_msg}")
+                elif hasattr(self.launcher_screen, 'lbl_create_status'):
+                    self.launcher_screen.lbl_create_status.text = f"❌ {err_msg}"
 
     def on_pause(self):
         """Handle Android home button / app switch to background."""
