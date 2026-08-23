@@ -51,6 +51,16 @@ class ModuleScanner:
                             data = json.load(f)
                             
                         entrypoint = data.get("entrypoint", "main.py")
+                        full_entry = os.path.join(item_path, entrypoint)
+                        if not os.path.exists(full_entry):
+                            txt_entry = full_entry + ".txt"
+                            if os.path.exists(txt_entry):
+                                try:
+                                    import shutil
+                                    shutil.copyfile(txt_entry, full_entry)
+                                except Exception:
+                                    pass
+
                         icon_file = data.get("icon", "icon.png")
                         icon_path = os.path.join(item_path, icon_file)
                         if not os.path.exists(icon_path):

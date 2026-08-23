@@ -20,10 +20,27 @@ class ModuleManager:
         
         os.makedirs(self.modules_dir, exist_ok=True)
         os.makedirs(self.scratch_dir, exist_ok=True)
+        self.ensure_source_files()
         self.scanner = ModuleScanner(self.modules_dir)
+
+    def ensure_source_files(self):
+        """Ensures that all permanent modules have their .py source files restored from .txt if stripped by Android packager."""
+        if not os.path.exists(self.modules_dir):
+            return
+        for item in os.listdir(self.modules_dir):
+            item_path = os.path.join(self.modules_dir, item)
+            if os.path.isdir(item_path):
+                main_py = os.path.join(item_path, "main.py")
+                main_txt = os.path.join(item_path, "main.py.txt")
+                if not os.path.exists(main_py) and os.path.exists(main_txt):
+                    try:
+                        shutil.copyfile(main_txt, main_py)
+                    except Exception as e:
+                        print(f"[ModuleManager] Failed to restore {main_py}: {e}")
 
     def scan(self):
         """Returns (permanent_modules, scratch_modules)."""
+        self.ensure_source_files()
         return self.scanner.scan_all()
 
     def create_scratch(self, code, prompt="custom_tool"):
@@ -32,7 +49,15 @@ class ModuleManager:
         Filename format: tmp_NNN_<slug>.py
         """
         existing = [f for f in os.listdir(self.scratch_dir) if f.startswith("tmp_") and f.endswith(".py")]
-        next_idx = len(existing) + 1
+        max_idx = 0
+        for f in existing:
+            m = re.match(r'^tmp_(\d+)_', f)
+            if m:
+                try:
+                    max_idx = max(max_idx, int(m.group(1)))
+                except ValueError:
+                    pass
+        next_idx = max_idx + 1
         
         slug = "_".join(prompt.lower().split()[:4])
         slug = re.sub(r'[^a-z0-9_]', '', slug).strip('_') or "tool"
@@ -110,12 +135,27 @@ class ModuleManager:
 
     def read_code(self, descriptor):
         """Reads source code from descriptor's entrypoint."""
-        if not os.path.exists(descriptor.entrypoint):
-            raise FileNotFoundError(f"Source file not found: {descriptor.entrypoint}")
-        with open(descriptor.entrypoint, 'r', encoding='utf-8') as f:
+        entrypoint = descriptor.entrypoint
+        if not os.path.exists(entrypoint):
+            txt_path = entrypoint + ".txt"
+            if os.path.exists(txt_path):
+                try:
+                    shutil.copyfile(txt_path, entrypoint)
+                except Exception:
+                    pass
+                with open(txt_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            raise FileNotFoundError(f"Source file not found: {entrypoint}")
+        with open(entrypoint, 'r', encoding='utf-8') as f:
             return f.read()
 
     def save_code(self, descriptor, new_code):
         """Overwrites the entrypoint file with updated code."""
         with open(descriptor.entrypoint, 'w', encoding='utf-8') as f:
             f.write(new_code)
+        txt_path = descriptor.entrypoint + ".txt"
+        try:
+            with open(txt_path, 'w', encoding='utf-8') as f:
+                f.write(new_code)
+        except Exception:
+            pass

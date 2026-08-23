@@ -10,6 +10,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.graphics import Color, Rectangle
+from kivy.clock import Clock
 from ui.themes import ColorSystem
 
 STARTER_CODE = """# OpenHub Dynamic Module
@@ -234,7 +235,7 @@ class ForgeStudioScreen(Screen):
         else:
             self.active_descriptor = self.app_manager.module_mgr.create_scratch(code, prompt="custom_tool")
             self.lbl_status.text = f"✅ Created '{self.active_descriptor.name}' in Scratch"
-        self.app_manager.refresh_modules()
+        Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
 
     def ask_forge_to_mutate(self, instance):
         instruction = self.prompt_input.text.strip()
@@ -253,7 +254,7 @@ class ForgeStudioScreen(Screen):
         self.prompt_input.text = ""
         if self.active_descriptor:
             self.app_manager.module_mgr.save_code(self.active_descriptor, code)
-            self.app_manager.refresh_modules()
+            Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
 
     def on_forge_error(self, instance, action, error_msg):
         self.btn_ask.text = "⚡ MUTATE"
@@ -272,5 +273,5 @@ class ForgeStudioScreen(Screen):
         else:
             self.app_manager.module_mgr.save_code(self.active_descriptor, code)
 
-        self.app_manager.refresh_modules()
-        self.app_manager.launch_module(self.active_descriptor)
+        Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
+        Clock.schedule_once(lambda dt, d=self.active_descriptor: self.app_manager.launch_module(d), 0.05)

@@ -1,0 +1,14 @@
+{
+  "id": "flashlight",
+  "name": "Tactical Flashlight",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Field",
+  "description": "Physical LED torch, variable frequency strobe (1-20 Hz), SOS beacon & lantern.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "hardware:flashlight",
+    "feedback:haptics"
+  ],
+  "trust_level": "trusted"
+}

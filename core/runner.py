@@ -23,7 +23,19 @@ class ModuleLoader:
         """
         entrypoint = module_descriptor.entrypoint
         if not os.path.exists(entrypoint):
-            raise FileNotFoundError(f"Entrypoint file not found: {entrypoint}")
+            # Check for .txt companion or .pyc compiled fallback
+            txt_path = entrypoint + ".txt"
+            pyc_path = entrypoint + "c" if entrypoint.endswith(".py") else entrypoint.replace(".py", ".pyc")
+            if os.path.exists(txt_path):
+                try:
+                    import shutil
+                    shutil.copyfile(txt_path, entrypoint)
+                except Exception:
+                    pass
+            elif os.path.exists(pyc_path):
+                entrypoint = pyc_path
+            else:
+                raise FileNotFoundError(f"Entrypoint file not found: {entrypoint}")
 
         # Add module directory to sys.path so it can import local helpers
         mod_dir = os.path.dirname(entrypoint)
@@ -35,10 +47,13 @@ class ModuleLoader:
             raise ImportError(f"Could not create module spec for {entrypoint}")
 
         module = importlib.util.module_from_spec(spec)
+        if spec.name in sys.modules:
+            del sys.modules[spec.name]
+        sys.modules[spec.name] = module
         try:
             spec.loader.exec_module(module)
         except Exception as e:
-            raise RuntimeError(f"Error executing module code: {e}")
+            raise RuntimeError(f"Error executing module code '{entrypoint}': {e}")
 
         # Search for OpenHubModule first
         if hasattr(module, "OpenHubModule"):

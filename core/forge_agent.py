@@ -20,9 +20,22 @@ class ForgeEngine(EventDispatcher):
         super().__init__(**kwargs)
         self.register_event_type('on_forge_success')
         self.register_event_type('on_forge_error')
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        self.gemini_api_key = self.load_api_key()
         self.ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
+
+    def load_api_key(self):
+        try:
+            settings_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
+            if os.path.exists(settings_file):
+                with open(settings_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    key = data.get("gemini_api_key", "").strip()
+                    if key:
+                        return key
+        except Exception:
+            pass
+        return os.getenv("GEMINI_API_KEY", "")
 
     def on_forge_success(self, action, code, explanation):
         pass
@@ -60,10 +73,36 @@ class ForgeEngine(EventDispatcher):
 Your task is to write or modify a standalone, responsive Kivy widget or application.
 
 RULES:
-1. Define a class named `OpenHubModule` that inherits from `BoxLayout` or another Kivy layout (or define an App/Widget).
-2. Keep the UI clean, modern, touch-friendly, and responsive for a mobile screen.
-3. Return the complete, runnable Python code wrapped in ```python ... ```.
-4. Provide a short 1-sentence summary of what you created or changed.
+1. Define a class named `OpenHubModule(BoxLayout)` (or Widget/Layout).
+2. Use responsive metrics `dp()` and `sp()` from `kivy.metrics`.
+3. Set `always_release=True` on buttons for smooth touchscreen activation.
+4. Implement `on_load(self, host_api)` to access hardware if needed (`self.host.hardware.vibrate()`, etc.).
+5. Return the complete, runnable Python code wrapped in ```python ... ``` without placeholders.
+
+EXAMPLE TEMPLATE:
+```python
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
+from kivy.uix.button import Button
+from kivy.metrics import dp, sp
+
+class OpenHubModule(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(orientation='vertical', padding=dp(16), spacing=dp(12), **kwargs)
+        self.host = None
+        self.add_widget(Label(text="✨ Custom Tool", font_size="22sp", bold=True, size_hint_y=None, height=dp(40)))
+        btn = Button(text="⚡ RUN", size_hint_y=None, height=dp(54), always_release=True, bold=True)
+        btn.bind(on_release=self.on_btn)
+        self.add_widget(btn)
+
+    def on_load(self, host_api):
+        self.host = host_api
+
+    def on_btn(self, *args):
+        if self.host and self.host.hardware:
+            self.host.hardware.vibrate(30)
+```
+Provide a short 1-sentence summary of what you created or changed.
 """
         user_message = f"Action: {action.upper()}\nInstruction: {prompt}"
         if current_code and current_code.strip():

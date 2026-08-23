@@ -1,0 +1,13 @@
+{
+  "id": "lux_meter",
+  "name": "Ambient Light Meter",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Field",
+  "description": "Real-time illuminance (Lux) sensor, light condition classifier & min/max tracker.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "sensors:light"
+  ],
+  "trust_level": "trusted"
+}

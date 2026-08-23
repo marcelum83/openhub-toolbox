@@ -66,15 +66,17 @@ CONVERSIONS = {
     }
 }
 
+from kivy.metrics import dp, sp
+
 class OpenHubModule(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation='vertical', padding=16, spacing=10, **kwargs)
+        super().__init__(orientation='vertical', padding=dp(16), spacing=dp(12), **kwargs)
         self.host = None
         self.current_category = "Length"
         
         # 1. Category Switcher Bar
-        cat_scroll = ScrollView(size_hint_y=None, height=45, do_scroll_x=True, do_scroll_y=False)
-        self.cat_box = BoxLayout(orientation='horizontal', size_hint_x=None, spacing=6)
+        cat_scroll = ScrollView(size_hint_y=None, height=dp(52), do_scroll_x=True, do_scroll_y=False)
+        self.cat_box = BoxLayout(orientation='horizontal', size_hint_x=None, spacing=dp(8))
         self.cat_box.bind(minimum_width=self.cat_box.setter('width'))
         
         self.cat_btns = {}
@@ -82,11 +84,12 @@ class OpenHubModule(BoxLayout):
             b = Button(
                 text=cat,
                 size_hint_x=None,
-                width=110,
+                width=dp(130),
                 background_normal="",
                 background_color=(0.02, 0.71, 0.83, 1) if cat == self.current_category else (0.13, 0.13, 0.19, 1),
                 color=(0.05, 0.05, 0.08, 1) if cat == self.current_category else (0.95, 0.95, 0.97, 1),
-                bold=True
+                bold=True,
+                font_size="15sp"
             )
             b.bind(on_release=lambda inst, c=cat: self.select_category(c))
             self.cat_btns[cat] = b
@@ -95,19 +98,19 @@ class OpenHubModule(BoxLayout):
         self.add_widget(cat_scroll)
 
         # 2. Input Number Box
-        input_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=52, spacing=10)
-        self.lbl_from = Label(text="Input Value:", size_hint_x=0.35, halign='left')
+        input_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(58), spacing=dp(10))
+        self.lbl_from = Label(text="Input Value:", font_size="16sp", size_hint_x=0.35, halign='left')
         self.lbl_from.bind(size=self.lbl_from.setter('text_size'))
         input_row.add_widget(self.lbl_from)
 
         self.num_input = TextInput(
             text="1.0",
             multiline=False,
-            font_size="20sp",
+            font_size="22sp",
             background_color=(0.09, 0.09, 0.13, 1),
             foreground_color=(0.02, 0.71, 0.83, 1),
             cursor_color=(0.02, 0.71, 0.83, 1),
-            padding=[10, 10, 10, 10]
+            padding=[dp(12), dp(12), dp(12), dp(12)]
         )
         self.num_input.bind(text=self.recalculate)
         input_row.add_widget(self.num_input)

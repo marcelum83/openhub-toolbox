@@ -13,13 +13,13 @@ package.domain = org.nexus.openhub
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,ttf,json,wav,mp3
+source.include_exts = py,png,jpg,kv,ttf,json,wav,mp3,txt,src
 
 # (str) Application versioning
 version = 1.0.0
 
 # (list) Application requirements
-requirements = python3, kivy==2.3.1, kivymd==1.2.0, plyer, pygments, requests, urllib3, certifi, charset-normalizer, idna, python-dotenv
+requirements = python3, kivy==2.3.1, kivymd==1.2.0, plyer, pygments, requests, urllib3, certifi, charset-normalizer, idna
 
 # (str) Supported orientations
 orientation = portrait
@@ -28,10 +28,13 @@ orientation = portrait
 fullscreen = 1
 
 # (list) Permissions
-android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, RECORD_AUDIO, VIBRATE, ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION, CAMERA
+android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, RECORD_AUDIO, VIBRATE, ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION, CAMERA, FLASHLIGHT
 
 # (int) Target Android API
 android.api = 34
+
+# (str) python-for-android git clone directory (if empty, it will be automatically cloned from github)
+p4a.source_dir = /home/mike/Documents/pixel/.buildozer/android/platform/python-for-android
 
 # (str) Allow unencrypted local HTTP/WS traffic for Cortex
 android.manifest.application_arguments = --uses-cleartext-traffic

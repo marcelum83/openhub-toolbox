@@ -1,0 +1,14 @@
+{
+  "id": "pitch_tuner",
+  "name": "Pitch Tuner",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Tools",
+  "description": "Chromatic instrument tuner, ±50 cents tuning gauge & audio spectrum visualizer.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "sensors:audio",
+    "feedback:haptics"
+  ],
+  "trust_level": "trusted"
+}

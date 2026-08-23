@@ -11,3 +11,5 @@ bin/
 .DS_Store
 *.log
 *.tmp.py
+.env
+settings.json

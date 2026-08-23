@@ -53,9 +53,11 @@ class BeatDisplay(Widget):
                 Ellipse(pos=(dot_x, dot_y), size=(dot_size, dot_size))
 
 
+from kivy.metrics import dp, sp
+
 class OpenHubModule(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation='vertical', padding=16, spacing=14, **kwargs)
+        super().__init__(orientation='vertical', padding=dp(16), spacing=dp(14), **kwargs)
         self.host = None
         self.bpm = 120
         self.beats_per_bar = 4
@@ -71,17 +73,18 @@ class OpenHubModule(BoxLayout):
         # 2. Large BPM Readout
         self.lbl_bpm = Label(
             text="120\nBPM",
-            font_size="32sp",
+            font_size="36sp",
             bold=True,
             color=(0.02, 0.71, 0.83, 1),
-            size_hint_y=0.2,
+            size_hint_y=None,
+            height=dp(80),
             halign='center'
         )
         self.add_widget(self.lbl_bpm)
 
         # 3. Slider & +/- Adjusters
-        adj_box = BoxLayout(orientation='horizontal', size_hint_y=0.15, spacing=10)
-        btn_minus = Button(text="-1", size_hint_x=0.2, background_color=(0.13, 0.13, 0.19, 1))
+        adj_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(56), spacing=dp(10))
+        btn_minus = Button(text="-1", size_hint_x=0.2, background_color=(0.13, 0.13, 0.19, 1), font_size="18sp", bold=True)
         btn_minus.bind(on_release=lambda x: self.adjust_bpm(-1))
         adj_box.add_widget(btn_minus)
 
@@ -89,26 +92,27 @@ class OpenHubModule(BoxLayout):
         self.slider.bind(value=self.on_slider_change)
         adj_box.add_widget(self.slider)
 
-        btn_plus = Button(text="+1", size_hint_x=0.2, background_color=(0.13, 0.13, 0.19, 1))
+        btn_plus = Button(text="+1", size_hint_x=0.2, background_color=(0.13, 0.13, 0.19, 1), font_size="18sp", bold=True)
         btn_plus.bind(on_release=lambda x: self.adjust_bpm(1))
         adj_box.add_widget(btn_plus)
         self.add_widget(adj_box)
 
         # 4. Time Signature Selector (2/4, 3/4, 4/4, 6/8)
-        sig_box = BoxLayout(orientation='horizontal', size_hint_y=0.12, spacing=8)
+        sig_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(52), spacing=dp(8))
         for sig, beats in [("2/4", 2), ("3/4", 3), ("4/4", 4), ("6/8", 6)]:
             b = Button(
                 text=sig,
                 background_color=(0.02, 0.71, 0.83, 1) if beats == 4 else (0.13, 0.13, 0.19, 1),
                 color=(0.05, 0.05, 0.08, 1) if beats == 4 else (0.95, 0.95, 0.97, 1),
-                bold=True
+                bold=True,
+                font_size="16sp"
             )
             b.bind(on_release=lambda inst, n=beats: self.set_signature(n))
             sig_box.add_widget(b)
         self.add_widget(sig_box)
 
         # 5. Play / Stop & Tap Tempo Actions
-        ctrl_box = BoxLayout(orientation='horizontal', size_hint_y=0.18, spacing=10)
+        ctrl_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(60), spacing=dp(10))
         
         self.btn_play = Button(
             text="▶ START",
@@ -128,7 +132,8 @@ class OpenHubModule(BoxLayout):
             background_normal="",
             background_color=(0.54, 0.36, 0.96, 1),
             color=(1, 1, 1, 1),
-            bold=True
+            bold=True,
+            font_size="14sp"
         )
         btn_tap.bind(on_release=self.on_tap_tempo)
         ctrl_box.add_widget(btn_tap)

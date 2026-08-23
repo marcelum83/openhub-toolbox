@@ -6,27 +6,24 @@ import os
 import sys
 
 # Load local environment if present (e.g. for GEMINI_API_KEY)
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    # Graceful fallback if python-dotenv is not installed
-    if os.path.exists(".env"):
-        try:
-            with open(".env", "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
-        except Exception:
-            pass
+if os.path.exists(".env"):
+    try:
+        with open(".env", "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except Exception:
+        pass
 
 # Configure Kivy Window for mobile portrait aspect ratio on desktop
-from kivy.config import Config
-Config.set('graphics', 'width', '440')
-Config.set('graphics', 'height', '860')
-Config.set('graphics', 'resizable', '1')
+from kivy.utils import platform
+if platform != 'android':
+    from kivy.config import Config
+    Config.set('graphics', 'width', '440')
+    Config.set('graphics', 'height', '860')
+    Config.set('graphics', 'resizable', '1')
 
 from kivymd.app import MDApp
 from kivy.uix.screenmanager import ScreenManager, FadeTransition
@@ -35,10 +32,13 @@ from kivy.clock import Clock
 from core.hardware import HardwareBridge
 from core.module_manager import ModuleManager
 from core.forge_agent import ForgeEngine
+from core.agent_chat import AgentChatEngine
 from core.security import HostAPI
 from core.runner import ModuleLoader
+from core.updater import UpdateManager
 from ui.launcher import LauncherScreen
 from ui.studio import ForgeStudioScreen
+from ui.agent_chat import AgentChatScreen
 from ui.module_runner import ModuleRunnerScreen
 
 class OpenHubScreenManager(ScreenManager):
@@ -56,6 +56,8 @@ class OpenHubApp(MDApp):
         self.hardware = HardwareBridge()
         self.module_mgr = ModuleManager(os.path.dirname(os.path.abspath(__file__)))
         self.forge = ForgeEngine()
+        self.updater = UpdateManager(os.path.dirname(os.path.abspath(__file__)))
+        self.agent_engine = AgentChatEngine(host_bridge=self.hardware)
 
         # Build Screen Manager
         self.sm = OpenHubScreenManager()
@@ -64,11 +66,15 @@ class OpenHubApp(MDApp):
         self.launcher_screen = LauncherScreen(self, name='launcher')
         self.sm.add_widget(self.launcher_screen)
 
-        # 2. Forge Screen (The Pydroid3 Studio & Agentic Self-Mutator)
+        # 2. Conversational Agent Screen (Local Ollama & Gemini)
+        self.agent_screen = AgentChatScreen(self, name='agent')
+        self.sm.add_widget(self.agent_screen)
+
+        # 3. Forge Screen (The Pydroid3 Studio & Agentic Self-Mutator)
         self.forge_screen = ForgeStudioScreen(self, name='forge')
         self.sm.add_widget(self.forge_screen)
 
-        # 3. Active Module Runner Screen
+        # 4. Active Module Runner Screen
         self.runner_screen = ModuleRunnerScreen(self, name='runner')
         self.sm.add_widget(self.runner_screen)
 
@@ -76,6 +82,11 @@ class OpenHubApp(MDApp):
         Clock.schedule_once(lambda dt: self.refresh_modules(), 0.1)
 
         return self.sm
+
+    def on_start(self):
+        """Called when the application starts and the window is ready."""
+        self.refresh_modules()
+        Clock.schedule_once(lambda dt: self.updater.check_for_updates(self.launcher_screen.on_update_check_result), 1.0)
 
     def refresh_modules(self):
         """Scans the modules directory and refreshes both scratch and permanent shelves."""
@@ -95,9 +106,12 @@ class OpenHubApp(MDApp):
             self.runner_screen.set_module(descriptor, widget)
             self.sm.current = 'runner'
         except Exception as e:
-            print(f"[OpenHubApp] Failed to launch module '{descriptor.name}': {e}")
+            err_msg = f"Failed to launch '{descriptor.name}': {e}"
+            print(f"[OpenHubApp] {err_msg}")
             import traceback
             traceback.print_exc()
+            if hasattr(self, 'launcher_screen') and self.launcher_screen:
+                self.launcher_screen.lbl_create_status.text = f"❌ {err_msg}"
 
     def on_pause(self):
         """Handle Android home button / app switch to background."""

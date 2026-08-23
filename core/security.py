@@ -20,12 +20,15 @@ class HostAPI:
         self._hardware = hardware_bridge
         
         # Dedicated sandboxed storage directory for this module
-        if storage_root:
-            self._module_dir = os.path.join(storage_root, "modules_data", module_id)
-            os.makedirs(self._module_dir, exist_ok=True)
-        else:
-            self._module_dir = os.path.abspath(f"./data/{module_id}")
-            os.makedirs(self._module_dir, exist_ok=True)
+        try:
+            if storage_root:
+                self._module_dir = os.path.join(storage_root, "modules_data", module_id)
+                os.makedirs(self._module_dir, exist_ok=True)
+            else:
+                self._module_dir = os.path.abspath(f"./data/{module_id}")
+                os.makedirs(self._module_dir, exist_ok=True)
+        except Exception:
+            self._module_dir = f"/tmp/{module_id}"
 
     @property
     def hardware(self):

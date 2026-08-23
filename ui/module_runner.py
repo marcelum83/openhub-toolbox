@@ -9,6 +9,7 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.graphics import Color, Rectangle
+from kivy.clock import Clock
 from ui.themes import ColorSystem
 
 class ModuleRunnerScreen(Screen):
@@ -163,8 +164,8 @@ class ModuleRunnerScreen(Screen):
         if not self.active_descriptor:
             return
         new_desc = self.app_manager.module_mgr.fork(self.active_descriptor)
-        self.app_manager.refresh_modules()
-        self.app_manager.launch_module(new_desc)
+        Clock.schedule_once(lambda dt: self.app_manager.refresh_modules(), 0)
+        Clock.schedule_once(lambda dt, d=new_desc: self.app_manager.launch_module(d), 0.05)
 
     def open_in_forge(self, instance):
         if not self.active_descriptor:

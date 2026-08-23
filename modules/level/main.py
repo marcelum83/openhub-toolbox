@@ -68,25 +68,27 @@ class LevelCanvas(Widget):
             Line(circle=(bubble_x, bubble_y, bubble_r), width=1.8)
 
 
+from kivy.metrics import dp, sp
+
 class OpenHubModule(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation='vertical', padding=16, spacing=12, **kwargs)
+        super().__init__(orientation='vertical', padding=dp(16), spacing=dp(14), **kwargs)
         self.host = None
         self.cal_pitch = 0.0
         self.cal_roll = 0.0
         self.was_level = False
         
         # Level canvas visualizer
-        self.level_view = LevelCanvas(size_hint_y=0.65)
+        self.level_view = LevelCanvas(size_hint_y=0.60)
         self.add_widget(self.level_view)
         
         # Readout Card
-        readouts = BoxLayout(orientation='horizontal', size_hint_y=0.2, spacing=10)
+        readouts = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(70), spacing=dp(10))
         
         # Pitch Box
         self.lbl_pitch = Label(
             text="PITCH\n0.0°",
-            font_size="20sp",
+            font_size="22sp",
             bold=True,
             color=(0.95, 0.95, 0.97, 1),
             halign='center'
@@ -96,7 +98,7 @@ class OpenHubModule(BoxLayout):
         # Roll Box
         self.lbl_roll = Label(
             text="ROLL\n0.0°",
-            font_size="20sp",
+            font_size="22sp",
             bold=True,
             color=(0.95, 0.95, 0.97, 1),
             halign='center'
@@ -104,28 +106,30 @@ class OpenHubModule(BoxLayout):
         readouts.add_widget(self.lbl_roll)
         self.add_widget(readouts)
         
-        # Calibration Action Bar
-        actions = BoxLayout(orientation='horizontal', size_hint_y=0.15, spacing=10)
-        btn_zero = Button(
+        # Calibration Action Bar (Big touch targets)
+        actions = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(58), spacing=dp(10))
+        self.btn_zero = Button(
             text="🎯 ZERO CALIBRATE",
             background_normal="",
             background_color=(0.02, 0.71, 0.83, 1),
             color=(0.05, 0.05, 0.08, 1),
-            bold=True
+            bold=True,
+            font_size="16sp"
         )
-        btn_zero.bind(on_release=self.zero_calibrate)
-        actions.add_widget(btn_zero)
+        self.btn_zero.bind(on_release=self.zero_calibrate)
+        actions.add_widget(self.btn_zero)
         
-        btn_reset = Button(
+        self.btn_reset = Button(
             text="RESET",
             size_hint_x=0.4,
             background_normal="",
             background_color=(0.13, 0.13, 0.19, 1),
             color=(0.95, 0.95, 0.97, 1),
-            bold=True
+            bold=True,
+            font_size="15sp"
         )
-        btn_reset.bind(on_release=self.reset_calibrate)
-        actions.add_widget(btn_reset)
+        self.btn_reset.bind(on_release=self.reset_calibrate)
+        actions.add_widget(self.btn_reset)
         self.add_widget(actions)
 
     def on_load(self, host_api):
@@ -171,7 +175,18 @@ class OpenHubModule(BoxLayout):
             self.cal_roll = r
             if self.host.hardware:
                 self.host.hardware.vibrate(50)
+        self.btn_zero.text = "🎯 CALIBRATED!"
+        self.btn_zero.background_color = (0.15, 0.68, 0.38, 1)
+        Clock.schedule_once(self._restore_zero_btn, 1.2)
+
+    def _restore_zero_btn(self, dt):
+        self.btn_zero.text = "🎯 ZERO CALIBRATE"
+        self.btn_zero.background_color = (0.02, 0.71, 0.83, 1)
 
     def reset_calibrate(self, instance):
         self.cal_pitch = 0.0
         self.cal_roll = 0.0
+        if self.host and self.host.hardware:
+            self.host.hardware.vibrate(30)
+        self.btn_reset.text = "RESET ✓"
+        Clock.schedule_once(lambda dt: setattr(self.btn_reset, 'text', 'RESET'), 1.0)

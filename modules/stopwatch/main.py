@@ -3,6 +3,7 @@ OpenHub Module: Precision Stopwatch
 Millisecond timer with split lap tracking and lap time delta analysis.
 """
 import time
+from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
@@ -12,7 +13,7 @@ from kivy.clock import Clock
 
 class OpenHubModule(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation='vertical', padding=16, spacing=14, **kwargs)
+        super().__init__(orientation='vertical', padding=dp(16), spacing=dp(14), **kwargs)
         self.host = None
         self.is_running = False
         self.elapsed = 0.0
@@ -23,16 +24,17 @@ class OpenHubModule(BoxLayout):
         # 1. Main Time Readout
         self.lbl_time = Label(
             text="00:00.00",
-            font_size="44sp",
+            font_size="48sp",
             bold=True,
             color=(0.95, 0.95, 0.97, 1),
-            size_hint_y=0.3,
+            size_hint_y=None,
+            height=dp(120),
             halign='center'
         )
         self.add_widget(self.lbl_time)
 
-        # 2. Control Buttons: [Start/Stop] [Lap/Reset]
-        btn_row = BoxLayout(orientation='horizontal', size_hint_y=0.18, spacing=12)
+        # 2. Control Buttons: [Start/Stop] [Lap/Reset] (Big touch targets)
+        btn_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(64), spacing=dp(12))
         
         self.btn_start = Button(
             text="▶ START",
@@ -41,7 +43,7 @@ class OpenHubModule(BoxLayout):
             background_color=(0.15, 0.68, 0.38, 1),
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="18sp"
+            font_size="20sp"
         )
         self.btn_start.bind(on_release=self.toggle_start)
         btn_row.add_widget(self.btn_start)
@@ -53,15 +55,15 @@ class OpenHubModule(BoxLayout):
             background_color=(0.13, 0.13, 0.19, 1),
             color=(0.95, 0.95, 0.97, 1),
             bold=True,
-            font_size="18sp"
+            font_size="20sp"
         )
         self.btn_lap.bind(on_release=self.on_lap_or_reset)
         btn_row.add_widget(self.btn_lap)
         self.add_widget(btn_row)
 
         # 3. Lap History Table
-        self.lap_scroll = ScrollView(size_hint_y=0.52)
-        self.lap_grid = GridLayout(cols=1, spacing=6, size_hint_y=None, padding=[0, 6, 0, 6])
+        self.lap_scroll = ScrollView()
+        self.lap_grid = GridLayout(cols=1, spacing=dp(8), size_hint_y=None, padding=[0, dp(8), 0, dp(8)])
         self.lap_grid.bind(minimum_height=self.lap_grid.setter('height'))
         self.lap_scroll.add_widget(self.lap_grid)
         self.add_widget(self.lap_scroll)

@@ -54,9 +54,11 @@ class DecibelBar(Widget):
             Rectangle(pos=(peak_x - 2, by - 4), size=(4, bar_h + 8))
 
 
+from kivy.metrics import dp, sp
+
 class OpenHubModule(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation='vertical', padding=16, spacing=14, **kwargs)
+        super().__init__(orientation='vertical', padding=dp(16), spacing=dp(14), **kwargs)
         self.host = None
         self.current_db = 38.0
         self.max_peak = 38.0
@@ -66,34 +68,37 @@ class OpenHubModule(BoxLayout):
         # 1. Main dB Number Display
         self.lbl_db = Label(
             text="38.0\ndB",
-            font_size="42sp",
+            font_size="48sp",
             bold=True,
             color=(0.02, 0.71, 0.83, 1),
-            size_hint_y=0.35,
+            size_hint_y=None,
+            height=dp(110),
             halign='center'
         )
         self.add_widget(self.lbl_db)
 
         # 2. Visual Meter Bar
-        self.bar_view = DecibelBar(size_hint_y=0.25)
+        self.bar_view = DecibelBar(size_hint_y=0.4)
         self.add_widget(self.bar_view)
 
         # 3. Peak Statistics Box
-        stats = BoxLayout(orientation='horizontal', size_hint_y=0.2, spacing=10)
-        self.lbl_min = Label(text="MIN\n38 dB", font_size="16sp", halign='center', color=(0.6, 0.6, 0.7, 1))
-        self.lbl_peak = Label(text="PEAK\n38 dB", font_size="16sp", halign='center', color=(0.95, 0.61, 0.07, 1), bold=True)
+        stats = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(60), spacing=dp(10))
+        self.lbl_min = Label(text="MIN\n38 dB", font_size="18sp", halign='center', color=(0.6, 0.6, 0.7, 1))
+        self.lbl_peak = Label(text="PEAK\n38 dB", font_size="18sp", halign='center', color=(0.95, 0.61, 0.07, 1), bold=True)
         stats.add_widget(self.lbl_min)
         stats.add_widget(self.lbl_peak)
         self.add_widget(stats)
 
-        # 4. Reset Action
+        # 4. Reset Action (Big touch target)
         btn_reset = Button(
             text="🔄 RESET PEAKS",
-            size_hint_y=0.2,
+            size_hint_y=None,
+            height=dp(56),
             background_normal="",
             background_color=(0.13, 0.13, 0.19, 1),
             color=(0.95, 0.95, 0.97, 1),
-            bold=True
+            bold=True,
+            font_size="16sp"
         )
         btn_reset.bind(on_release=self.reset_peaks)
         self.add_widget(btn_reset)
