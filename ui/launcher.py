@@ -4,8 +4,9 @@ Features:
 - Android / Pixel-style customizable 4-column Home Screen grid with persistent storage
 - 'At a Glance' live clock, date, and hardware sensor telemetry widget
 - Fixed bottom dock with primary quick-launch shortcuts
-- Swipe-up / tap gesture animated App Drawer with real-time search and category filtering
+- Swipe-up gesture + tap animated App Drawer with real-time search and category filtering
 - Full Drag & Drop: long-press any app in the drawer or home screen to drag, pin, reorder, or remove
+- Universal crisp icon badges (guaranteed zero missing-font tofu / square [x] boxes)
 - Long-press context actions: Launch, Pin/Unpin, Edit Code, Fork, Promote, Publish, Delete
 """
 import time
@@ -22,10 +23,9 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
 from kivy.uix.modalview import ModalView
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Rectangle, RoundedRectangle, Line, Ellipse
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
 from kivy.animation import Animation
 from kivy.clock import Clock
-from kivy.core.window import Window
 
 from ui.themes import ColorSystem
 from core.home_layout import HomeLayoutManager
@@ -65,7 +65,6 @@ class UpdateModal(ModalView):
             self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
         root.bind(size=self._update_bg, pos=self._update_bg)
 
-        # Title
         lbl_title = Label(
             text="🚀 NEW UPDATE AVAILABLE",
             font_size="20sp",
@@ -426,7 +425,6 @@ class AppContextModal(ModalView):
 
         meta = ColorSystem.get_icon_meta(descriptor.id, descriptor.category, descriptor.is_scratch)
         
-        # Calculate dynamic height
         num_buttons = 4 + (1 if descriptor.is_scratch else 0)
         self.height = dp(80 + num_buttons * 48)
 
@@ -438,10 +436,20 @@ class AppContextModal(ModalView):
             self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
         root.bind(size=self._update_bg, pos=self._update_bg)
 
-        # Header with App Icon & Name
+        # Header with Badge & Name
         head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(46), spacing=dp(10))
-        lbl_icon = Label(text=meta["icon"], font_size="24sp", size_hint_x=None, width=dp(40))
-        head.add_widget(lbl_icon)
+        
+        badge_box = Widget(size_hint=(None, None), size=(dp(42), dp(42)))
+        with badge_box.canvas:
+            Color(*meta["bg"])
+            RoundedRectangle(pos=badge_box.pos, size=badge_box.size, radius=[dp(12)])
+            Color(*meta["border"])
+            Line(rounded_rectangle=(badge_box.x, badge_box.y, badge_box.width, badge_box.height, dp(12)), width=1.2)
+        badge_box.bind(pos=lambda inst, v: badge_box.canvas.ask_update())
+        
+        lbl_badge = Label(text=meta["badge"], font_size="14sp", bold=True, color=meta["accent"], center_x=badge_box.center_x, center_y=badge_box.center_y)
+        badge_box.add_widget(lbl_badge)
+        head.add_widget(badge_box)
 
         v_head = BoxLayout(orientation='vertical')
         lbl_name = Label(text=descriptor.name, font_size="16sp", bold=True, color=ColorSystem.TEXT_PRIMARY, halign='left')
@@ -463,7 +471,8 @@ class AppContextModal(ModalView):
             background_color=ColorSystem.SUCCESS,
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="14sp"
+            font_size="14sp",
+            always_release=True
         )
         btn_run.bind(on_release=self._action_run)
         root.add_widget(btn_run)
@@ -479,7 +488,8 @@ class AppContextModal(ModalView):
             background_color=pin_color,
             color=(1, 1, 1, 1) if is_pinned else ColorSystem.BG_DARK,
             bold=True,
-            font_size="13sp"
+            font_size="13sp",
+            always_release=True
         )
         btn_pin.bind(on_release=self._action_toggle_pin)
         root.add_widget(btn_pin)
@@ -493,7 +503,8 @@ class AppContextModal(ModalView):
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="13sp"
+            font_size="13sp",
+            always_release=True
         )
         btn_edit.bind(on_release=self._action_edit)
         root.add_widget(btn_edit)
@@ -507,7 +518,8 @@ class AppContextModal(ModalView):
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
             bold=True,
-            font_size="13sp"
+            font_size="13sp",
+            always_release=True
         )
         btn_fork.bind(on_release=self._action_fork)
         root.add_widget(btn_fork)
@@ -522,7 +534,8 @@ class AppContextModal(ModalView):
                 background_color=ColorSystem.SECONDARY,
                 color=(1, 1, 1, 1),
                 bold=True,
-                font_size="13sp"
+                font_size="13sp",
+                always_release=True
             )
             btn_promote.bind(on_release=self._action_promote)
             root.add_widget(btn_promote)
@@ -563,8 +576,8 @@ class AppContextModal(ModalView):
 
 class AppIconWidget(BoxLayout):
     """
-    Native Android-style squircle App Icon with label, tap detection,
-    long-press gesture detection, and drag initiating.
+    Native Android-style squircle App Icon with high-contrast badge monogram,
+    universal symbol, tap launch, and drag & drop support.
     """
     def __init__(self, descriptor=None, system_shortcut=None, launcher_screen=None, is_home=False, **kwargs):
         super().__init__(orientation='vertical', size_hint=(None, None), size=(dp(82), dp(96)), padding=[dp(4), dp(2), dp(4), dp(2)], spacing=dp(4), **kwargs)
@@ -593,26 +606,37 @@ class AppIconWidget(BoxLayout):
         self.app_name = name
         self.meta = ColorSystem.get_icon_meta(mod_id, cat, is_scratch)
 
-        # Icon Squircle Badge Canvas
-        self.icon_badge = Widget(size_hint=(None, None), size=(dp(58), dp(58)), pos_hint={'center_x': 0.5})
+        # Squircle Icon Container
+        self.icon_badge = BoxLayout(orientation='vertical', size_hint=(None, None), size=(dp(58), dp(58)), pos_hint={'center_x': 0.5}, padding=dp(2), spacing=0)
         with self.icon_badge.canvas.before:
             self.bg_color = Color(*self.meta["bg"])
             self.bg_rect = RoundedRectangle(size=self.icon_badge.size, pos=self.icon_badge.pos, radius=[dp(18)])
             self.border_color = Color(*self.meta["border"])
-            self.border_line = Line(rounded_rectangle=(self.icon_badge.x, self.icon_badge.y, self.icon_badge.width, self.icon_badge.height, dp(18)), width=1.2)
+            self.border_line = Line(rounded_rectangle=(self.icon_badge.x, self.icon_badge.y, self.icon_badge.width, self.icon_badge.height, dp(18)), width=1.4)
         self.icon_badge.bind(size=self._update_badge, pos=self._update_badge)
 
-        # Emoji / Icon Label inside Badge
-        lbl_char = self.meta["icon"]
-        self.lbl_emoji = Label(
-            text=lbl_char,
-            font_size="28sp",
-            center_x=self.icon_badge.center_x,
-            center_y=self.icon_badge.center_y,
-            size=(dp(58), dp(58)),
-            pos_hint={'center_x': 0.5, 'center_y': 0.5}
+        # Top Mini Universal Symbol
+        self.lbl_symbol = Label(
+            text=self.meta.get("symbol", "●"),
+            font_size="13sp",
+            color=self.meta["accent"],
+            size_hint_y=None,
+            height=dp(18),
+            halign='center'
         )
-        self.icon_badge.add_widget(self.lbl_emoji)
+        self.icon_badge.add_widget(self.lbl_symbol)
+
+        # Center Bold Monogram Badge (e.g. LVL, MET, ACE, DEV)
+        self.lbl_monogram = Label(
+            text=self.meta.get("badge", "APP"),
+            font_size="15sp",
+            bold=True,
+            color=self.meta["accent"],
+            size_hint_y=None,
+            height=dp(32),
+            halign='center'
+        )
+        self.icon_badge.add_widget(self.lbl_monogram)
         self.add_widget(self.icon_badge)
 
         # Title Label below Icon
@@ -635,9 +659,6 @@ class AppIconWidget(BoxLayout):
         self.bg_rect.pos = inst.pos
         self.bg_rect.size = inst.size
         self.border_line.rounded_rectangle = (inst.x, inst.y, inst.width, inst.height, dp(18))
-        if hasattr(self, 'lbl_emoji'):
-            self.lbl_emoji.pos = inst.pos
-            self.lbl_emoji.size = inst.size
 
     def on_touch_down(self, touch):
         if not self.collide_point(*touch.pos):
@@ -648,12 +669,8 @@ class AppIconWidget(BoxLayout):
         self.touch_start_pos = touch.pos
         self.is_dragging = False
 
-        # Visual press feedback
-        self.border_color.a = 1.0
-        self.border_line.width = 2.0
-
-        # Schedule Long Press detection (0.38s)
-        self.long_press_event = Clock.schedule_once(lambda dt, t=touch: self._on_long_press(t), 0.38)
+        self.border_line.width = 2.2
+        self.long_press_event = Clock.schedule_once(lambda dt, t=touch: self._on_long_press(t), 0.35)
         return True
 
     def on_touch_move(self, touch):
@@ -661,8 +678,7 @@ class AppIconWidget(BoxLayout):
             dx = abs(touch.pos[0] - self.touch_start_pos[0])
             dy = abs(touch.pos[1] - self.touch_start_pos[1])
             
-            # If moved beyond threshold before long-press fires, cancel long-press (user is scrolling)
-            if (dx > dp(12) or dy > dp(12)) and not self.is_dragging:
+            if (dx > dp(14) or dy > dp(14)) and not self.is_dragging:
                 if self.long_press_event:
                     self.long_press_event.cancel()
                     self.long_press_event = None
@@ -675,7 +691,7 @@ class AppIconWidget(BoxLayout):
     def on_touch_up(self, touch):
         if touch.grab_current is self:
             touch.ungrab(self)
-            self.border_line.width = 1.2
+            self.border_line.width = 1.4
             if self.long_press_event:
                 self.long_press_event.cancel()
                 self.long_press_event = None
@@ -686,7 +702,6 @@ class AppIconWidget(BoxLayout):
                     self.launcher_screen.finish_drag(self, touch.pos)
                 return True
 
-            # If not dragged and released within collision bounds -> Regular Tap Launch!
             if self.collide_point(*touch.pos):
                 self._on_tap()
             return True
@@ -696,7 +711,6 @@ class AppIconWidget(BoxLayout):
         self.long_press_event = None
         self.is_dragging = True
         
-        # Trigger Haptic pulse
         if self.launcher_screen and self.launcher_screen.app_manager.hardware:
             self.launcher_screen.app_manager.hardware.vibrate(35)
 
@@ -707,7 +721,6 @@ class AppIconWidget(BoxLayout):
         if not self.launcher_screen:
             return
         
-        # System shortcut action
         if self.system_shortcut:
             s_id = self.system_shortcut.get("id")
             if s_id == "agent":
@@ -720,7 +733,6 @@ class AppIconWidget(BoxLayout):
                 CommunityHubModal(self.launcher_screen.app_manager).open()
             return
 
-        # Dynamic module launch
         if self.descriptor:
             self.launcher_screen.app_manager.launch_module(self.descriptor)
 
@@ -736,21 +748,23 @@ class FloatingGhostIcon(Widget):
             Color(*meta["bg"])
             self.bg_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[dp(20)])
             Color(*meta["border"])
-            self.border_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(20)), width=2.0)
+            self.border_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(20)), width=2.4)
         
-        self.lbl_emoji = Label(
-            text=meta["icon"],
-            font_size="32sp",
+        self.lbl_badge = Label(
+            text=meta.get("badge", "APP"),
+            font_size="18sp",
+            bold=True,
+            color=meta["accent"],
             size=(dp(68), dp(68)),
             pos=self.pos
         )
-        self.add_widget(self.lbl_emoji)
+        self.add_widget(self.lbl_badge)
         self.bind(pos=self._update_pos)
 
     def _update_pos(self, *a):
         self.bg_rect.pos = self.pos
         self.border_line.rounded_rectangle = (self.x, self.y, self.width, self.height, dp(20))
-        self.lbl_emoji.pos = self.pos
+        self.lbl_badge.pos = self.pos
 
 
 class LauncherScreen(Screen):
@@ -771,7 +785,10 @@ class LauncherScreen(Screen):
         self.active_drag_source = None
         self.ghost_widget = None
 
-        # Root Layout: FloatLayout enables layered Home Screen + Slide-Up Drawer + Drag Overlay
+        self._touch_down_pos = None
+        self._touch_down_time = 0
+
+        # Root Layout: FloatLayout enables layered Home Screen + Full-coverage Drawer + Drag Overlay
         self.root_float = FloatLayout()
         with self.root_float.canvas.before:
             Color(*ColorSystem.BG_DARK)
@@ -796,7 +813,7 @@ class LauncherScreen(Screen):
         self.home_container.add_widget(self.top_toast_bar)
 
         # 1B. At A Glance Widget (Clock, Date, Live Telemetry)
-        self.glance_box = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(100), padding=[dp(20), dp(4), dp(20), dp(4)], spacing=dp(2))
+        self.glance_box = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(105), padding=[dp(20), dp(4), dp(20), dp(4)], spacing=dp(2))
         
         self.lbl_time = Label(
             text="12:00",
@@ -822,25 +839,19 @@ class LauncherScreen(Screen):
         self.glance_box.add_widget(self.lbl_date)
 
         # Quick AI search pill on Home Screen
-        self.ai_pill = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), padding=[dp(10), dp(2), dp(10), dp(2)], spacing=dp(6))
-        with self.ai_pill.canvas.before:
-            Color(*ColorSystem.SURFACE)
-            self.pill_bg = RoundedRectangle(size=self.ai_pill.size, pos=self.ai_pill.pos, radius=[dp(16)])
-            Color(*ColorSystem.SURFACE_BORDER)
-            self.pill_border = Line(rounded_rectangle=(self.ai_pill.x, self.ai_pill.y, self.ai_pill.width, self.ai_pill.height, dp(16)), width=1.0)
-        self.ai_pill.bind(size=lambda inst, v: setattr(self.pill_bg, 'size', inst.size) or setattr(self.pill_bg, 'pos', inst.pos) or setattr(self.pill_border, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(16))))
-        
-        lbl_spark = Label(text="✨", font_size="13sp", size_hint_x=None, width=dp(20))
-        self.ai_pill.add_widget(lbl_spark)
-        
-        lbl_ai_hint = Label(text="Tap to chat with ACE Agent or forge tools...", font_size="12sp", color=ColorSystem.TEXT_HINT, halign='left')
-        lbl_ai_hint.bind(size=lbl_ai_hint.setter('text_size'))
-        self.ai_pill.add_widget(lbl_ai_hint)
-        
-        btn_ai_tap = Button(background_normal="", background_color=(0, 0, 0, 0), size_hint=(1, 1))
-        btn_ai_tap.bind(on_release=lambda x: setattr(self.manager, 'current', 'agent'))
-        self.ai_pill.add_widget(btn_ai_tap)
-        self.glance_box.add_widget(self.ai_pill)
+        self.btn_ai_pill = Button(
+            text="✨ Tap to chat with ACE Agent or forge tools...",
+            font_size="12sp",
+            bold=True,
+            color=ColorSystem.TEXT_MUTED,
+            background_normal="",
+            background_color=ColorSystem.SURFACE,
+            size_hint_y=None,
+            height=dp(32),
+            always_release=True
+        )
+        self.btn_ai_pill.bind(on_release=lambda x: setattr(self.manager, 'current', 'agent'))
+        self.glance_box.add_widget(self.btn_ai_pill)
         
         self.home_container.add_widget(self.glance_box)
 
@@ -851,26 +862,26 @@ class LauncherScreen(Screen):
         self.home_scroll.add_widget(self.home_grid)
         self.home_container.add_widget(self.home_scroll)
 
-        # 1D. Fixed Bottom Dock & Swipe Up Handle
-        self.dock_container = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(125), padding=[dp(14), dp(4), dp(14), dp(10)], spacing=dp(6))
+        # 1D. Fixed Bottom Dock & Swipe Up Button
+        self.dock_container = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(130), padding=[dp(14), dp(4), dp(14), dp(10)], spacing=dp(6))
         
-        # Swipe Up Indicator Pill
-        self.swipe_handle = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(26), size_hint_x=None, width=dp(180), pos_hint={'center_x': 0.5})
-        with self.swipe_handle.canvas.before:
-            Color(0.18, 0.18, 0.26, 0.9)
-            self.handle_bg = RoundedRectangle(size=self.swipe_handle.size, pos=self.swipe_handle.pos, radius=[dp(13)])
-        self.swipe_handle.bind(size=lambda inst, v: setattr(self.handle_bg, 'size', inst.size) or setattr(self.handle_bg, 'pos', inst.pos))
-        
-        lbl_handle = Label(text="▲  ALL APPS & TOOLS", font_size="11sp", bold=True, color=ColorSystem.PRIMARY, halign='center')
-        self.swipe_handle.add_widget(lbl_handle)
-        
-        btn_open_drawer = Button(background_normal="", background_color=(0, 0, 0, 0), size_hint=(1, 1))
-        btn_open_drawer.bind(on_release=lambda x: self.toggle_app_drawer(True))
-        self.swipe_handle.add_widget(btn_open_drawer)
-        self.dock_container.add_widget(self.swipe_handle)
+        # Dedicated Swipe-Up Button Handle (Full Width Click Target)
+        self.btn_open_drawer = Button(
+            text="▲  ALL APPS & TOOLS  ▲",
+            font_size="12sp",
+            bold=True,
+            color=ColorSystem.BG_DARK,
+            background_normal="",
+            background_color=ColorSystem.PRIMARY,
+            size_hint_y=None,
+            height=dp(32),
+            always_release=True
+        )
+        self.btn_open_drawer.bind(on_release=lambda x: self.toggle_app_drawer(True))
+        self.dock_container.add_widget(self.btn_open_drawer)
 
         # Dock Icons Capsule
-        self.dock_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(80), padding=[dp(10), dp(6), dp(10), dp(6)], spacing=dp(8))
+        self.dock_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(82), padding=[dp(10), dp(4), dp(10), dp(4)], spacing=dp(8))
         with self.dock_bar.canvas.before:
             Color(*ColorSystem.DOCK_BG)
             self.dock_bg = RoundedRectangle(size=self.dock_bar.size, pos=self.dock_bar.pos, radius=[dp(24)])
@@ -897,30 +908,51 @@ class LauncherScreen(Screen):
         self.root_float.add_widget(self.remove_drop_zone)
 
         # ----------------------------------------------------
-        # LAYER 3: APP DRAWER OVERLAY (Slide-up Bottom Sheet)
+        # LAYER 3: APP DRAWER OVERLAY (Full Solid Slide-up Screen)
         # ----------------------------------------------------
-        self.drawer_overlay = BoxLayout(orientation='vertical', size_hint=(1, 0.94), pos_hint={'x': 0, 'y': -1}, padding=[dp(12), dp(8), dp(12), dp(12)], spacing=dp(8))
+        self.drawer_overlay = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, 1),
+            pos_hint={'x': 0, 'y': -1.05},
+            padding=[dp(12), dp(8), dp(12), dp(12)],
+            spacing=dp(8)
+        )
         with self.drawer_overlay.canvas.before:
-            Color(*ColorSystem.DRAWER_BG)
-            self.drawer_bg = RoundedRectangle(size=self.drawer_overlay.size, pos=self.drawer_overlay.pos, radius=[dp(24), dp(24), 0, 0])
+            Color(0.07, 0.07, 0.11, 1.0)
+            self.drawer_bg = Rectangle(size=self.drawer_overlay.size, pos=self.drawer_overlay.pos)
             Color(*ColorSystem.PRIMARY)
-            self.drawer_border = Line(rounded_rectangle=(self.drawer_overlay.x, self.drawer_overlay.y, self.drawer_overlay.width, self.drawer_overlay.height, dp(24), dp(24), 0, 0), width=1.5)
-        self.drawer_overlay.bind(size=lambda inst, v: setattr(self.drawer_bg, 'size', inst.size) or setattr(self.drawer_bg, 'pos', inst.pos) or setattr(self.drawer_border, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(24), dp(24), 0, 0)))
+            self.drawer_border = Line(points=[self.drawer_overlay.x, self.drawer_overlay.top, self.drawer_overlay.right, self.drawer_overlay.top], width=2.0)
+        self.drawer_overlay.bind(size=lambda inst, v: setattr(self.drawer_bg, 'size', inst.size) or setattr(self.drawer_bg, 'pos', inst.pos) or setattr(self.drawer_border, 'points', [inst.x, inst.top, inst.right, inst.top]))
 
-        # Drawer Grab Bar / Close
-        grab_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(24))
+        # Top Header: Close Button Bar
+        drawer_head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(38), spacing=dp(8))
         btn_close_drawer = Button(
-            text="▼ CLOSE ALL APPS",
-            font_size="12sp",
+            text="▼ BACK TO HOME SCREEN",
+            font_size="13sp",
             bold=True,
-            color=ColorSystem.TEXT_MUTED,
+            color=ColorSystem.PRIMARY,
             background_normal="",
-            background_color=(0, 0, 0, 0),
-            size_hint=(1, 1)
+            background_color=ColorSystem.SURFACE_HOVER,
+            size_hint=(1, 1),
+            always_release=True
         )
         btn_close_drawer.bind(on_release=lambda x: self.toggle_app_drawer(False))
-        grab_box.add_widget(btn_close_drawer)
-        self.drawer_overlay.add_widget(grab_box)
+        drawer_head.add_widget(btn_close_drawer)
+        
+        btn_close_x = Button(
+            text="✕",
+            font_size="16sp",
+            bold=True,
+            color=ColorSystem.TEXT_PRIMARY,
+            background_normal="",
+            background_color=ColorSystem.SURFACE,
+            size_hint_x=None,
+            width=dp(44),
+            always_release=True
+        )
+        btn_close_x.bind(on_release=lambda x: self.toggle_app_drawer(False))
+        drawer_head.add_widget(btn_close_x)
+        self.drawer_overlay.add_widget(drawer_head)
 
         # Search Bar
         search_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(46), spacing=dp(8))
@@ -944,7 +976,8 @@ class LauncherScreen(Screen):
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_MUTED,
-            font_size="14sp"
+            font_size="14sp",
+            always_release=True
         )
         btn_clear_search.bind(on_release=lambda x: setattr(self.txt_search, 'text', ''))
         search_box.add_widget(btn_clear_search)
@@ -963,7 +996,8 @@ class LauncherScreen(Screen):
                 bold=True,
                 font_size="11sp",
                 size_hint_y=None,
-                height=dp(34)
+                height=dp(34),
+                always_release=True
             )
             b.bind(on_release=lambda inst, c=cat: self.set_drawer_category(c))
             self.cat_chip_btns[cat] = b
@@ -1000,7 +1034,8 @@ class LauncherScreen(Screen):
             background_color=ColorSystem.SECONDARY,
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="11sp"
+            font_size="11sp",
+            always_release=True
         )
         self.btn_quick_create.bind(on_release=self.on_quick_create_submit)
         self.forge_pill.add_widget(self.btn_quick_create)
@@ -1016,11 +1051,8 @@ class LauncherScreen(Screen):
         self.root_float.add_widget(self.drawer_overlay)
         self.add_widget(self.root_float)
 
-        # Clock ticks for live clock update
         Clock.schedule_interval(self._tick_clock, 1.0)
         self._tick_clock(0)
-
-        # Build initial dock
         self.rebuild_dock()
 
     def _update_bg(self, inst, val):
@@ -1035,13 +1067,39 @@ class LauncherScreen(Screen):
     def show_toast(self, message):
         self.lbl_toast.text = message
 
+    # ----------------------------------------------------
+    # TOUCH & GESTURE ENGINE (Swipe Up & Down)
+    # ----------------------------------------------------
+    def on_touch_down(self, touch):
+        self._touch_down_pos = touch.pos
+        self._touch_down_time = time.time()
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        if self._touch_down_pos:
+            dy = touch.pos[1] - self._touch_down_pos[1]
+            
+            # Swipe Up to open drawer (when on bottom half of home screen)
+            if not self.drawer_open and dy > dp(35) and self._touch_down_pos[1] < self.height * 0.80:
+                self._touch_down_pos = None
+                self.toggle_app_drawer(True)
+                return True
+            
+            # Swipe Down to close drawer (when near top of drawer)
+            if self.drawer_open and dy < -dp(40) and self._touch_down_pos[1] > self.height * 0.65:
+                self._touch_down_pos = None
+                self.toggle_app_drawer(False)
+                return True
+
+        return super().on_touch_move(touch)
+
     def toggle_app_drawer(self, open_drawer):
         self.drawer_open = open_drawer
-        target_y = 0.0 if open_drawer else -1.0
-        anim = Animation(pos_hint={'x': 0, 'y': target_y}, duration=0.22, t='out_quad')
+        target_y = 0.0 if open_drawer else -1.05
+        anim = Animation(pos_hint={'x': 0, 'y': target_y}, duration=0.20, t='out_cubic')
         anim.start(self.drawer_overlay)
         if open_drawer and self.app_manager.hardware:
-            self.app_manager.hardware.vibrate(20)
+            self.app_manager.hardware.vibrate(25)
 
     def set_drawer_category(self, category):
         if category == "HUB":
@@ -1076,7 +1134,6 @@ class LauncherScreen(Screen):
         self.rebuild_dock()
 
     def rebuild_dock(self):
-        """Builds the 4 primary bottom dock icons."""
         self.dock_bar.clear_widgets()
         dock_items = self.layout_mgr.layout_data.get("dock_apps", [])
         
@@ -1093,7 +1150,6 @@ class LauncherScreen(Screen):
             self.dock_bar.add_widget(icon_w)
 
     def rebuild_home_grid(self):
-        """Renders the pinned apps on the Home Screen grid."""
         self.home_grid.clear_widgets()
         pinned_ids = self.layout_mgr.get_pinned_apps()
         
@@ -1104,7 +1160,6 @@ class LauncherScreen(Screen):
                 self.home_grid.add_widget(icon_w)
 
     def rebuild_drawer_grid(self, query=""):
-        """Renders all available tools into the App Drawer grid."""
         self.drawer_grid.clear_widgets()
         
         all_list = self.permanent_tools + self.scratch_tools
@@ -1127,15 +1182,13 @@ class LauncherScreen(Screen):
     def start_drag(self, icon_widget, touch_pos):
         self.active_drag_source = icon_widget
         
-        # Show top remove drop zone
         anim_remove = Animation(opacity=1.0, duration=0.15)
         anim_remove.start(self.remove_drop_zone)
 
-        # If dragging from drawer, animate drawer down to peek home screen
+        # If dragging from drawer, animate drawer down so user sees Home Screen
         if not icon_widget.is_home and self.drawer_open:
-            Animation(pos_hint={'x': 0, 'y': -0.75}, duration=0.2).start(self.drawer_overlay)
+            Animation(pos_hint={'x': 0, 'y': -0.75}, duration=0.18).start(self.drawer_overlay)
 
-        # Spawn Floating Ghost Icon on root FloatLayout
         if self.ghost_widget:
             self.root_float.remove_widget(self.ghost_widget)
         
@@ -1148,14 +1201,13 @@ class LauncherScreen(Screen):
             self.ghost_widget.pos = (touch_pos[0] - dp(34), touch_pos[1] - dp(34))
 
     def finish_drag(self, icon_widget, touch_pos):
-        # Hide top remove drop zone
         Animation(opacity=0.0, duration=0.15).start(self.remove_drop_zone)
         
         if self.ghost_widget:
             self.root_float.remove_widget(self.ghost_widget)
             self.ghost_widget = None
 
-        # Check if dropped onto the Remove bar at top
+        # Drop onto Remove Bar at top
         if self.remove_drop_zone.collide_point(*touch_pos):
             if icon_widget.descriptor and icon_widget.is_home:
                 self.layout_mgr.unpin_app(icon_widget.descriptor.id)
@@ -1165,9 +1217,8 @@ class LauncherScreen(Screen):
                     self.app_manager.hardware.vibrate(40)
             return
 
-        # If dragged from drawer onto Home Screen:
+        # Dragged from drawer onto Home Screen
         if not icon_widget.is_home:
-            # Check if dropped over the Home Screen area
             if touch_pos[1] > dp(130):
                 if icon_widget.descriptor:
                     self.layout_mgr.pin_app(icon_widget.descriptor.id)
@@ -1175,10 +1226,9 @@ class LauncherScreen(Screen):
                     self.rebuild_home_grid()
                     if self.app_manager.hardware:
                         self.app_manager.hardware.vibrate(50)
-            # Restore drawer position or close it
             self.toggle_app_drawer(False)
         else:
-            # If dragged on Home Screen without moving to remove, open context menu
+            # Tap / Long press on Home opens context menu
             AppContextModal(icon_widget.descriptor, is_pinned=True, launcher_screen=self).open()
 
     # ----------------------------------------------------

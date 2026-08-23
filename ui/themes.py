@@ -26,49 +26,57 @@ class ColorSystem:
     TEXT_MUTED = (0.65, 0.65, 0.75, 1.0)
     TEXT_HINT = (0.45, 0.45, 0.55, 1.0)
 
-    # Icon Palettes Mapping
+    # Icon Palettes Mapping (Universal Monograms + High-Contrast Accents)
     MODULE_ICONS = {
-        "level": {"icon": "🟢", "bg": (0.08, 0.22, 0.15, 1.0), "border": (0.15, 0.68, 0.38, 0.9)},
-        "metronome": {"icon": "⏱️", "bg": (0.22, 0.12, 0.05, 1.0), "border": (0.95, 0.61, 0.07, 0.9)},
-        "converter": {"icon": "📐", "bg": (0.05, 0.18, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 0.9)},
-        "compass": {"icon": "🧭", "bg": (0.18, 0.08, 0.22, 1.0), "border": (0.54, 0.36, 0.96, 0.9)},
-        "stopwatch": {"icon": "⏳", "bg": (0.08, 0.18, 0.25, 1.0), "border": (0.15, 0.55, 0.95, 0.9)},
-        "decibel": {"icon": "🔊", "bg": (0.24, 0.08, 0.12, 1.0), "border": (0.91, 0.30, 0.24, 0.9)},
-        "reaction": {"icon": "⚡", "bg": (0.24, 0.18, 0.05, 1.0), "border": (0.98, 0.75, 0.10, 0.9)},
-        "monster_battle": {"icon": "👾", "bg": (0.16, 0.06, 0.26, 1.0), "border": (0.85, 0.20, 0.65, 0.9)},
-        "nexus_remote": {"icon": "🖥️", "bg": (0.06, 0.16, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 0.9)},
-        "flashlight": {"icon": "🔦", "bg": (0.22, 0.20, 0.06, 1.0), "border": (0.95, 0.85, 0.15, 0.9)},
-        "lux_meter": {"icon": "☀️", "bg": (0.24, 0.14, 0.05, 1.0), "border": (0.95, 0.55, 0.10, 0.9)},
-        "pitch_tuner": {"icon": "🎵", "bg": (0.10, 0.10, 0.25, 1.0), "border": (0.40, 0.45, 0.95, 0.9)},
-        "cellular_automata": {"icon": "🧬", "bg": (0.08, 0.22, 0.18, 1.0), "border": (0.10, 0.80, 0.60, 0.9)},
-        "dice_roller": {"icon": "🎲", "bg": (0.20, 0.08, 0.22, 1.0), "border": (0.75, 0.30, 0.90, 0.9)},
-        "bouncing_ball": {"icon": "🏀", "bg": (0.24, 0.12, 0.06, 1.0), "border": (0.95, 0.45, 0.15, 0.9)},
-        "agent": {"icon": "🧠", "bg": (0.18, 0.08, 0.26, 1.0), "border": (0.65, 0.35, 0.95, 0.9)},
-        "forge": {"icon": "⚡", "bg": (0.06, 0.20, 0.22, 1.0), "border": (0.05, 0.80, 0.75, 0.9)},
-        "settings": {"icon": "⚙️", "bg": (0.14, 0.14, 0.18, 1.0), "border": (0.60, 0.60, 0.70, 0.9)},
+        "level": {"badge": "LVL", "symbol": "◎", "bg": (0.06, 0.20, 0.14, 1.0), "border": (0.15, 0.75, 0.40, 1.0), "accent": (0.20, 0.90, 0.50, 1.0)},
+        "metronome": {"badge": "MET", "symbol": "♫", "bg": (0.22, 0.12, 0.04, 1.0), "border": (0.95, 0.60, 0.05, 1.0), "accent": (1.0, 0.70, 0.15, 1.0)},
+        "converter": {"badge": "CVT", "symbol": "⇄", "bg": (0.04, 0.18, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 1.0), "accent": (0.10, 0.85, 1.0, 1.0)},
+        "compass": {"badge": "CMP", "symbol": "✦", "bg": (0.16, 0.06, 0.22, 1.0), "border": (0.54, 0.36, 0.96, 1.0), "accent": (0.70, 0.50, 1.0, 1.0)},
+        "stopwatch": {"badge": "TIM", "symbol": "⏱", "bg": (0.06, 0.16, 0.25, 1.0), "border": (0.15, 0.55, 0.95, 1.0), "accent": (0.30, 0.70, 1.0, 1.0)},
+        "decibel": {"badge": "dB", "symbol": "∿", "bg": (0.24, 0.06, 0.10, 1.0), "border": (0.91, 0.30, 0.24, 1.0), "accent": (1.0, 0.40, 0.35, 1.0)},
+        "reaction": {"badge": "RXT", "symbol": "⚡", "bg": (0.24, 0.16, 0.04, 1.0), "border": (0.98, 0.75, 0.10, 1.0), "accent": (1.0, 0.85, 0.20, 1.0)},
+        "monster_battle": {"badge": "RPG", "symbol": "⚔", "bg": (0.16, 0.05, 0.26, 1.0), "border": (0.85, 0.20, 0.65, 1.0), "accent": (1.0, 0.35, 0.80, 1.0)},
+        "nexus_remote": {"badge": "PC", "symbol": "⌨", "bg": (0.05, 0.16, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 1.0), "accent": (0.10, 0.85, 1.0, 1.0)},
+        "flashlight": {"badge": "LGT", "symbol": "☀", "bg": (0.22, 0.20, 0.05, 1.0), "border": (0.95, 0.85, 0.15, 1.0), "accent": (1.0, 0.95, 0.30, 1.0)},
+        "lux_meter": {"badge": "LUX", "symbol": "☼", "bg": (0.24, 0.14, 0.04, 1.0), "border": (0.95, 0.55, 0.10, 1.0), "accent": (1.0, 0.65, 0.20, 1.0)},
+        "pitch_tuner": {"badge": "TUN", "symbol": "♯", "bg": (0.08, 0.08, 0.25, 1.0), "border": (0.40, 0.45, 0.95, 1.0), "accent": (0.55, 0.60, 1.0, 1.0)},
+        "cellular_automata": {"badge": "BIO", "symbol": "☷", "bg": (0.06, 0.22, 0.18, 1.0), "border": (0.10, 0.80, 0.60, 1.0), "accent": (0.20, 0.95, 0.75, 1.0)},
+        "dice_roller": {"badge": "DCE", "symbol": "⚄", "bg": (0.20, 0.06, 0.22, 1.0), "border": (0.75, 0.30, 0.90, 1.0), "accent": (0.90, 0.45, 1.0, 1.0)},
+        "bouncing_ball": {"badge": "BAL", "symbol": "●", "bg": (0.24, 0.10, 0.05, 1.0), "border": (0.95, 0.45, 0.15, 1.0), "accent": (1.0, 0.55, 0.25, 1.0)},
+        "agent": {"badge": "ACE", "symbol": "◈", "bg": (0.18, 0.06, 0.26, 1.0), "border": (0.65, 0.35, 0.95, 1.0), "accent": (0.80, 0.50, 1.0, 1.0)},
+        "forge": {"badge": "DEV", "symbol": "⚡", "bg": (0.05, 0.20, 0.22, 1.0), "border": (0.05, 0.80, 0.75, 1.0), "accent": (0.15, 0.95, 0.90, 1.0)},
+        "settings": {"badge": "CFG", "symbol": "⚙", "bg": (0.12, 0.12, 0.16, 1.0), "border": (0.60, 0.60, 0.70, 1.0), "accent": (0.80, 0.80, 0.90, 1.0)},
     }
 
     @classmethod
     def get_icon_meta(cls, mod_id, category="Tools", is_scratch=False):
-        """Returns {icon, bg, border} for a module id."""
+        """Returns {badge, symbol, bg, border, accent} for a module id."""
         key = mod_id.lower().replace("-", "_")
         if key in cls.MODULE_ICONS:
             return cls.MODULE_ICONS[key]
         
         if is_scratch or "tmp_" in key or "scratch" in key:
+            # Generate short 3-letter badge from name or slug
+            clean = "".join(c for c in key if c.isalpha())
+            b_txt = clean[:3].upper() if len(clean) >= 3 else "LAB"
             return {
-                "icon": "🧪",
-                "bg": (0.18, 0.08, 0.26, 1.0),
-                "border": (0.65, 0.35, 0.95, 0.9)
+                "badge": b_txt,
+                "symbol": "🧪",
+                "bg": (0.18, 0.06, 0.26, 1.0),
+                "border": (0.65, 0.35, 0.95, 0.9),
+                "accent": (0.80, 0.50, 1.0, 1.0)
             }
         
         cat_lower = (category or "").lower()
+        clean = "".join(c for c in key if c.isalpha())
+        b_txt = clean[:3].upper() if len(clean) >= 3 else "MOD"
+
         if "field" in cat_lower or "sensor" in cat_lower:
-            return {"icon": "🧭", "bg": (0.06, 0.18, 0.18, 1.0), "border": (0.10, 0.80, 0.60, 0.9)}
+            return {"badge": b_txt, "symbol": "✦", "bg": (0.06, 0.18, 0.18, 1.0), "border": (0.10, 0.80, 0.60, 0.9), "accent": (0.20, 0.95, 0.75, 1.0)}
         elif "agent" in cat_lower or "ai" in cat_lower:
-            return {"icon": "🧠", "bg": (0.18, 0.08, 0.26, 1.0), "border": (0.65, 0.35, 0.95, 0.9)}
+            return {"badge": b_txt, "symbol": "◈", "bg": (0.18, 0.06, 0.26, 1.0), "border": (0.65, 0.35, 0.95, 0.9), "accent": (0.80, 0.50, 1.0, 1.0)}
         elif "experiment" in cat_lower or "game" in cat_lower:
-            return {"icon": "👾", "bg": (0.22, 0.08, 0.18, 1.0), "border": (0.85, 0.20, 0.65, 0.9)}
+            return {"badge": b_txt, "symbol": "⚔", "bg": (0.22, 0.06, 0.18, 1.0), "border": (0.85, 0.20, 0.65, 0.9), "accent": (1.0, 0.35, 0.80, 1.0)}
         else:
-            return {"icon": "📦", "bg": (0.08, 0.15, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 0.9)}
+            return {"badge": b_txt, "symbol": "●", "bg": (0.06, 0.16, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 0.9), "accent": (0.10, 0.85, 1.0, 1.0)}
 
