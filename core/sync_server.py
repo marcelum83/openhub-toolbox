@@ -143,6 +143,60 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 self.send_error(500, f"Telemetry error: {e}")
                 return
 
+        # API: SimpleAgent (ACE-OS Cognitive Engine Bridge)
+        if parsed.path == "/api/simple_agent/chat":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                prompt = data.get("prompt", "")
+                sensor_ctx = data.get("sensor_context", "")
+                model = data.get("model", "qwen2.5-coder:7b")
+
+                # Invoke SimpleAgent
+                import sys
+                simple_agent_dir = "/home/mike/Documents/Nexus_Core/ACE/simple_agent"
+                if simple_agent_dir not in sys.path:
+                    sys.path.insert(0, simple_agent_dir)
+
+                try:
+                    import simple_agent
+                    simple_agent.init_db()
+                    simple_agent.load_plugins()
+                    sys_prompt = simple_agent.generate_system_prompt()
+                    if sensor_ctx:
+                        sys_prompt += f"\n\n### LIVE MOBILE SENSOR TELEMETRY ###\n{sensor_ctx}\n"
+
+                    # Ensure OpenHub tool building rules are present
+                    sys_prompt += "\n\nWhen asked to build or write an OpenHub tool or application, output complete runnable Kivy Python code in ```python ... ``` with class OpenHubModule(BoxLayout)."
+
+                    from openai import OpenAI
+                    client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+                    conv_id = simple_agent.create_conversation()
+
+                    resp = client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": sys_prompt},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.4
+                    )
+                    reply = resp.choices[0].message.content
+                    
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"response": reply, "provider": "simple_agent_ace", "model": model}).encode('utf-8'))
+                    return
+                except Exception as sa_err:
+                    self.send_error(500, f"SimpleAgent execution error: {sa_err}")
+                    return
+            except Exception as e:
+                self.send_error(400, f"Invalid request: {e}")
+                return
+
         # API: Publish Module from mobile to Central Repository & GitHub
         if parsed.path == "/api/modules/publish":
             content_length = int(self.headers.get('Content-Length', 0))

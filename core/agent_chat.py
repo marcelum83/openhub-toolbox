@@ -200,7 +200,12 @@ class AgentChatEngine(EventDispatcher):
         response_text = ""
         error_text = ""
 
-        if self.current_provider == "ollama":
+        if self.current_provider == "simple_agent":
+            response_text, error_text = self._query_simple_agent(user_prompt, sensor_info)
+            if error_text:
+                print(f"[AgentChatEngine] SimpleAgent error ({error_text}), falling back to Ollama...")
+                response_text, error_text = self._query_ollama(user_prompt, sys_context)
+        elif self.current_provider == "ollama":
             response_text, error_text = self._query_ollama(user_prompt, sys_context)
             # If Ollama fails, auto-fallback to Gemini if key exists
             if error_text and self.gemini_api_key:
@@ -213,6 +218,21 @@ class AgentChatEngine(EventDispatcher):
                 response_text, error_text = self._query_ollama(user_prompt, sys_context)
 
         Clock.schedule_once(lambda dt: self._on_worker_finished(response_text, error_text), 0)
+
+    def _query_simple_agent(self, user_prompt, sensor_info):
+        url = f"http://{self.server_host}:8080/api/simple_agent/chat"
+        payload = json.dumps({
+            "prompt": user_prompt,
+            "sensor_context": sensor_info,
+            "model": self.current_model
+        }).encode('utf-8')
+        try:
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                return data.get("response", ""), ""
+        except Exception as e:
+            return "", f"SimpleAgent API error: {e}"
 
     def _query_ollama(self, user_prompt, sys_prompt):
         url = f"http://{self.server_host}:{self.ollama_port}/api/chat"
