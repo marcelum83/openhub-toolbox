@@ -1,0 +1,13 @@
+{
+  "id": "monster_battle",
+  "name": "Monster Battle RPG",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Experiments",
+  "description": "Turn-based creature battle RPG with HP bars, visual battle arena, moves, catching mechanics & haptic impacts.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "feedback:haptics"
+  ],
+  "trust_level": "trusted"
+}
