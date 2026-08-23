@@ -188,18 +188,30 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                     client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
                     conv_id = simple_agent.create_conversation()
 
+                    # Persist user prompt in SimpleAgent database
+                    try:
+                        simple_agent.save_message(conv_id, "user", prompt)
+                    except Exception as sm_e:
+                        print(f"[SimpleAgent] Notice saving user msg: {sm_e}")
+
                     resp = client.chat.completions.create(
                         model=model,
                         messages=messages,
                         temperature=0.4
                     )
                     reply = resp.choices[0].message.content
+
+                    # Persist assistant reply in SimpleAgent database
+                    try:
+                        simple_agent.save_message(conv_id, "assistant", reply)
+                    except Exception as sm_e:
+                        print(f"[SimpleAgent] Notice saving assistant reply: {sm_e}")
                     
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/json')
                     self.send_header('Access-Control-Allow-Origin', '*')
                     self.end_headers()
-                    self.wfile.write(json.dumps({"response": reply, "provider": "simple_agent_ace", "model": model}).encode('utf-8'))
+                    self.wfile.write(json.dumps({"response": reply, "provider": "simple_agent_ace", "model": model, "conversation_id": conv_id}).encode('utf-8'))
                     return
                 except Exception as sa_err:
                     self.send_error(500, f"SimpleAgent execution error: {sa_err}")
