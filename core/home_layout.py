@@ -21,18 +21,21 @@ class HomeLayoutManager:
             "version": 1,
             # Home Screen pinned app IDs in order of grid position
             "pinned_apps": [
-                "level",
+                "spirit_level",
                 "metronome",
-                "converter",
+                "unit_converter",
                 "compass",
                 "reaction",
                 "stopwatch",
-                "decibel",
+                "decibel_meter",
                 "monster_battle",
                 "nexus_remote",
                 "flashlight",
                 "lux_meter",
-                "pitch_tuner"
+                "pitch_tuner",
+                "cellular_automata",
+                "dice_roller",
+                "bouncing_ball"
             ],
             # Bottom dock shortcuts (max 4-5)
             "dock_apps": [

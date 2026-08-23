@@ -29,11 +29,14 @@ class ColorSystem:
     # Icon Palettes Mapping (Universal Monograms + High-Contrast Accents)
     MODULE_ICONS = {
         "level": {"badge": "LVL", "symbol": "◎", "bg": (0.06, 0.20, 0.14, 1.0), "border": (0.15, 0.75, 0.40, 1.0), "accent": (0.20, 0.90, 0.50, 1.0)},
+        "spirit_level": {"badge": "LVL", "symbol": "◎", "bg": (0.06, 0.20, 0.14, 1.0), "border": (0.15, 0.75, 0.40, 1.0), "accent": (0.20, 0.90, 0.50, 1.0)},
         "metronome": {"badge": "MET", "symbol": "♫", "bg": (0.22, 0.12, 0.04, 1.0), "border": (0.95, 0.60, 0.05, 1.0), "accent": (1.0, 0.70, 0.15, 1.0)},
         "converter": {"badge": "CVT", "symbol": "⇄", "bg": (0.04, 0.18, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 1.0), "accent": (0.10, 0.85, 1.0, 1.0)},
+        "unit_converter": {"badge": "CVT", "symbol": "⇄", "bg": (0.04, 0.18, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 1.0), "accent": (0.10, 0.85, 1.0, 1.0)},
         "compass": {"badge": "CMP", "symbol": "✦", "bg": (0.16, 0.06, 0.22, 1.0), "border": (0.54, 0.36, 0.96, 1.0), "accent": (0.70, 0.50, 1.0, 1.0)},
         "stopwatch": {"badge": "TIM", "symbol": "⏱", "bg": (0.06, 0.16, 0.25, 1.0), "border": (0.15, 0.55, 0.95, 1.0), "accent": (0.30, 0.70, 1.0, 1.0)},
         "decibel": {"badge": "dB", "symbol": "∿", "bg": (0.24, 0.06, 0.10, 1.0), "border": (0.91, 0.30, 0.24, 1.0), "accent": (1.0, 0.40, 0.35, 1.0)},
+        "decibel_meter": {"badge": "dB", "symbol": "∿", "bg": (0.24, 0.06, 0.10, 1.0), "border": (0.91, 0.30, 0.24, 1.0), "accent": (1.0, 0.40, 0.35, 1.0)},
         "reaction": {"badge": "RXT", "symbol": "⚡", "bg": (0.24, 0.16, 0.04, 1.0), "border": (0.98, 0.75, 0.10, 1.0), "accent": (1.0, 0.85, 0.20, 1.0)},
         "monster_battle": {"badge": "RPG", "symbol": "⚔", "bg": (0.16, 0.05, 0.26, 1.0), "border": (0.85, 0.20, 0.65, 1.0), "accent": (1.0, 0.35, 0.80, 1.0)},
         "nexus_remote": {"badge": "PC", "symbol": "⌨", "bg": (0.05, 0.16, 0.24, 1.0), "border": (0.02, 0.71, 0.83, 1.0), "accent": (0.10, 0.85, 1.0, 1.0)},

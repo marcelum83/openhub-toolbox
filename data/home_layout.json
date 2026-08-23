@@ -1,43 +1,46 @@
 {
   "version": 1,
   "pinned_apps": [
+    "spirit_level",
     "metronome",
-    "converter",
+    "unit_converter",
     "compass",
+    "reaction",
     "stopwatch",
-    "decibel",
+    "decibel_meter",
     "monster_battle",
     "nexus_remote",
     "flashlight",
     "lux_meter",
     "pitch_tuner",
-    "reaction",
-    "cellular_automata"
+    "cellular_automata",
+    "dice_roller",
+    "bouncing_ball"
   ],
   "dock_apps": [
     {
       "id": "agent",
       "type": "system",
       "name": "Agent",
-      "icon": "\ud83e\udde0"
+      "icon": "🧠"
     },
     {
       "id": "forge",
       "type": "system",
       "name": "Forge",
-      "icon": "\u26a1"
+      "icon": "⚡"
     },
     {
       "id": "nexus_remote",
       "type": "module",
       "name": "Remote",
-      "icon": "\ud83d\udda5\ufe0f"
+      "icon": "🖥️"
     },
     {
       "id": "settings",
       "type": "system",
       "name": "Sync",
-      "icon": "\u2699\ufe0f"
+      "icon": "⚙️"
     }
   ]
 }

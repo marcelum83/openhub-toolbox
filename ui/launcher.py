@@ -1133,6 +1133,38 @@ class LauncherScreen(Screen):
         self.rebuild_drawer_grid()
         self.rebuild_dock()
 
+    def get_descriptor(self, mod_id):
+        """Resolves descriptor by exact id, lowercase slug, alias, or directory name."""
+        if not mod_id:
+            return None
+        if mod_id in self.all_descriptors:
+            return self.all_descriptors[mod_id]
+        
+        m_low = mod_id.lower().replace("-", "_")
+        for k, v in self.all_descriptors.items():
+            if k.lower().replace("-", "_") == m_low:
+                return v
+        
+        aliases = {
+            "level": "spirit_level",
+            "converter": "unit_converter",
+            "decibel": "decibel_meter",
+            "remote": "nexus_remote",
+            "light": "flashlight",
+            "tuner": "pitch_tuner",
+        }
+        target_alias = aliases.get(m_low)
+        if target_alias and target_alias in self.all_descriptors:
+            return self.all_descriptors[target_alias]
+            
+        for d in self.permanent_tools + self.scratch_tools:
+            dir_name = d.entrypoint.split('/')[-2] if '/' in d.entrypoint else ''
+            if dir_name == m_low:
+                return d
+            if m_low in d.name.lower():
+                return d
+        return None
+
     def rebuild_dock(self):
         self.dock_bar.clear_widgets()
         dock_items = self.layout_mgr.layout_data.get("dock_apps", [])
@@ -1141,9 +1173,12 @@ class LauncherScreen(Screen):
             i_type = item.get("type", "system")
             i_id = item.get("id")
             
-            if i_type == "module" and i_id in self.all_descriptors:
-                desc = self.all_descriptors[i_id]
-                icon_w = AppIconWidget(descriptor=desc, launcher_screen=self, is_home=True)
+            if i_type == "module":
+                desc = self.get_descriptor(i_id)
+                if desc:
+                    icon_w = AppIconWidget(descriptor=desc, launcher_screen=self, is_home=True)
+                else:
+                    icon_w = AppIconWidget(system_shortcut=item, launcher_screen=self, is_home=True)
             else:
                 icon_w = AppIconWidget(system_shortcut=item, launcher_screen=self, is_home=True)
             
@@ -1153,9 +1188,17 @@ class LauncherScreen(Screen):
         self.home_grid.clear_widgets()
         pinned_ids = self.layout_mgr.get_pinned_apps()
         
+        count = 0
         for mod_id in pinned_ids:
-            if mod_id in self.all_descriptors:
-                desc = self.all_descriptors[mod_id]
+            desc = self.get_descriptor(mod_id)
+            if desc:
+                icon_w = AppIconWidget(descriptor=desc, launcher_screen=self, is_home=True)
+                self.home_grid.add_widget(icon_w)
+                count += 1
+                
+        # If no pinned apps were found, populate with all permanent tools as default
+        if count == 0 and self.permanent_tools:
+            for desc in self.permanent_tools:
                 icon_w = AppIconWidget(descriptor=desc, launcher_screen=self, is_home=True)
                 self.home_grid.add_widget(icon_w)
 
