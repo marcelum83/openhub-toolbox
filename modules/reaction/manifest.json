@@ -1,0 +1,10 @@
+{
+  "id": "reaction",
+  "name": "reaction",
+  "version": "1.0.0",
+  "author": "mobile_agent",
+  "category": "Tools",
+  "description": "Saved tool: reaction",
+  "entrypoint": "main.py",
+  "trust_level": "trusted"
+}
