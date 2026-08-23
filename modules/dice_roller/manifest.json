@@ -1,0 +1,10 @@
+{
+  "id": "dice_roller",
+  "name": "Polyhedral Dice",
+  "version": "1.0.0",
+  "author": "mobile_agent",
+  "category": "Tools",
+  "description": "Multi-die roller with haptics (d4, d6, d8, d10, d12, d20, d100)",
+  "entrypoint": "main.py",
+  "trust_level": "trusted"
+}
