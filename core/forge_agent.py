@@ -76,10 +76,11 @@ RULES:
 1. MANDATORY: Define `class OpenHubModule(BoxLayout):` as the root entrypoint.
 2. FORBIDDEN: Never define `class ...App(App):` or call `App().run()`.
 3. ANIMATIONS & CANVAS: Store state/velocity as instance variables (`self.vx`, `self.ball_x`), and redraw the canvas on each `Clock.schedule_interval` tick.
-4. Use responsive metrics `dp()` and `sp()` from `kivy.metrics`.
-5. Set `always_release=True` on buttons for smooth touchscreen activation.
-6. Implement `on_load(self, host_api)` to access hardware if needed (`self.host.hardware.vibrate()`, etc.).
-7. Return the complete, runnable Python code wrapped in ```python ... ``` without placeholders.
+4. TIMERS & TIMING TESTS: Use `time.perf_counter()` to measure timestamps `(time.perf_counter() - start) * 1000`. Cancel active `ClockEvent`s in `on_pause()`.
+5. Use responsive metrics `dp()` and `sp()` from `kivy.metrics`.
+6. Set `always_release=True` on buttons for smooth touchscreen activation.
+7. Implement `on_load(self, host_api)` to access hardware if needed (`self.host.hardware.vibrate()`, etc.).
+8. Return the complete, runnable Python code wrapped in ```python ... ``` without placeholders.
 
 EXAMPLE TEMPLATE:
 ```python

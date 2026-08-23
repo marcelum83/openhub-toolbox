@@ -27,6 +27,11 @@ You assist the user in two modes:
    - Store positions/velocities on `self` (`self.vx`, `self.vy`, `self.ball_x`, `self.ball_y`), NEVER as local variables inside `update()`.
    - In your custom `Widget`, clear and redraw `self.canvas` in a `redraw()` method called on every frame tick (`Clock.schedule_interval(self.update, 1/60)`).
    - In `on_resume(self)` start your Clock interval, and in `on_pause(self)` cancel it.
+4. TIMERS & TIMING TESTS:
+   - Use `time.perf_counter()` to measure exact timestamps `(time.perf_counter() - start) * 1000`.
+   - NEVER create recursive `Clock.schedule_once` loops that re-schedule themselves indefinitely without cancellation.
+   - Store active `ClockEvent` objects and cancel them in `on_pause()`.
+   - NEVER disable the action button when prompting the user to react.
 
 ### HARDWARE APIS AVAILABLE VIA `self.host.hardware`:
 Inside `on_load(self, host_api)`: store `self.host = host_api`.
