@@ -166,7 +166,12 @@ Provide a short 1-sentence summary of what you created or changed.
 
     def _extract_code(self, text):
         match = re.search(r"```python\s*(.*?)\s*```", text, re.DOTALL)
-        return match.group(1).strip() if match else text.strip()
+        raw = match.group(1).strip() if match else text.strip()
+        try:
+            from core.sanitizer import CodeSanitizer
+            return CodeSanitizer.sanitize(raw)
+        except Exception:
+            return raw
 
     def _extract_explanation(self, text):
         cleaned = re.sub(r"```python\s*.*?\s*```", "", text, flags=re.DOTALL).strip()

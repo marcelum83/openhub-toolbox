@@ -88,6 +88,12 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                     self.send_error(400, "Missing Python code")
                     return
 
+                try:
+                    from core.sanitizer import CodeSanitizer
+                    code = CodeSanitizer.sanitize(code)
+                except Exception:
+                    pass
+
                 # Write to modules/<id>/
                 target_dir = os.path.join(MODULES_DIR, mod_id)
                 os.makedirs(target_dir, exist_ok=True)

@@ -266,7 +266,13 @@ class AgentChatEngine(EventDispatcher):
         
         code_match = re.search(r'```python\s*(.*?)\s*```', response_text, re.DOTALL)
         if code_match:
-            tool_code = code_match.group(1)
+            raw_code = code_match.group(1)
+            try:
+                from core.sanitizer import CodeSanitizer
+                tool_code = CodeSanitizer.sanitize(raw_code)
+            except Exception:
+                tool_code = raw_code
+
             # Try to infer a nice title
             for line in response_text.splitlines()[:5]:
                 if any(kw in line.lower() for kw in ["tool", "app", "widget", "calculator", "game", "timer"]):

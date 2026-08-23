@@ -64,6 +64,12 @@ class ModuleManager:
         filename = f"tmp_{next_idx:03d}_{slug}.py"
         file_path = os.path.join(self.scratch_dir, filename)
 
+        try:
+            from core.sanitizer import CodeSanitizer
+            code = CodeSanitizer.sanitize(code)
+        except Exception:
+            pass
+
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(code)
 
