@@ -208,6 +208,38 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 if model == "gemma4:e4b":
                     model = "qwen2.5-coder:7b"
 
+                # Check if camera image is attached
+                image_base64 = data.get("image_base64")
+                if image_base64:
+                    try:
+                        import base64
+                        img_bytes = base64.b64decode(image_base64)
+                        with open("/tmp/pixel_snapshot.jpg", "wb") as f_img:
+                            f_img.write(img_bytes)
+                    except Exception as ie:
+                        print(f"[SyncServer] Image write error: {ie}")
+
+                    # Ask local moondream vision model to analyze the camera snapshot
+                    vision_desc = ""
+                    try:
+                        v_payload = json.dumps({
+                            "model": "moondream:latest",
+                            "prompt": "Describe what you see in this photo taken by the user's Pixel 7a camera in detail, including text, objects, and environment:",
+                            "images": [image_base64],
+                            "stream": False
+                        }).encode('utf-8')
+                        v_req = urllib.request.Request("http://127.0.0.1:11434/api/generate", data=v_payload, headers={"Content-Type": "application/json"})
+                        with urllib.request.urlopen(v_req, timeout=25) as v_resp:
+                            v_data = json.loads(v_resp.read().decode('utf-8'))
+                            vision_desc = v_data.get("response", "").strip()
+                    except Exception as ve:
+                        print(f"[SyncServer] Vision model error: {ve}")
+
+                    if vision_desc:
+                        prompt = f"[Visual Observation from Pixel 7a Camera]: {vision_desc}\n\nUser Question/Request: {prompt or 'Analyze this scene and suggest any relevant actions or tools.'}"
+                    else:
+                        prompt = f"[Visual Observation]: Image saved at /tmp/pixel_snapshot.jpg\n\nUser Request: {prompt or 'Analyze this image.'}"
+
                 # If sensor_ctx wasn't explicitly provided, attach LATEST_TELEMETRY if recent
                 if not sensor_ctx and LATEST_TELEMETRY.get("timestamp", 0) > 0:
                     sensor_ctx = f"Compass={LATEST_TELEMETRY.get('heading', 0):.1f}°, Pitch={LATEST_TELEMETRY.get('pitch', 0):.1f}°, Roll={LATEST_TELEMETRY.get('roll', 0):.1f}°, Lux={LATEST_TELEMETRY.get('lux', 0):.0f} lx, Mic={LATEST_TELEMETRY.get('db', 0):.0f} dB"

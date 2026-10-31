@@ -166,20 +166,27 @@ class AgentChatEngine(EventDispatcher):
         except Exception:
             pass
 
-    def send_user_message(self, user_text):
-        if self.is_busy or not user_text.strip():
+    def send_user_message(self, user_text, image_base64=None):
+        clean_text = user_text.strip() if user_text else ""
+        if self.is_busy or (not clean_text and not image_base64):
             return
         
         self.load_config()
         self.is_busy = True
         
+        display_text = clean_text
+        if image_base64 and not display_text:
+            display_text = "📷 [Photo Attached] Analyze this image."
+        elif image_base64:
+            display_text = f"📷 [Photo Attached] {display_text}"
+
         # Append user message to history
-        msg_obj = {"role": "user", "content": user_text.strip(), "tool_code": None}
+        msg_obj = {"role": "user", "content": display_text, "tool_code": None}
         self.messages.append(msg_obj)
-        self.dispatch('on_agent_message', 'user', user_text.strip(), None, "")
+        self.dispatch('on_agent_message', 'user', display_text, None, "")
 
         # Run query in worker thread
-        t = threading.Thread(target=self._query_worker, args=(user_text,))
+        t = threading.Thread(target=self._query_worker, args=(clean_text, image_base64))
         t.daemon = True
         t.start()
 
@@ -195,7 +202,7 @@ class AgentChatEngine(EventDispatcher):
         except Exception:
             return ""
 
-    def _query_worker(self, user_prompt):
+    def _query_worker(self, user_prompt, image_base64=None):
         sensor_info = self._get_sensor_snapshot()
         sys_context = AGENT_SYSTEM_PROMPT + (f"\n[Live Device Sensor State: {sensor_info}]" if sensor_info else "")
         
@@ -203,17 +210,17 @@ class AgentChatEngine(EventDispatcher):
         error_text = ""
 
         if self.current_provider == "simple_agent":
-            response_text, error_text = self._query_simple_agent(user_prompt, sensor_info)
+            response_text, error_text = self._query_simple_agent(user_prompt, sensor_info, image_base64)
             if error_text:
                 print(f"[AgentChatEngine] SimpleAgent error ({error_text}), falling back to Ollama...")
-                response_text, error_text = self._query_ollama(user_prompt, sys_context)
+                response_text, error_text = self._query_ollama(user_prompt, sys_context, image_base64)
         elif self.current_provider == "firebase":
             response_text, error_text = self._query_firebase_telepathy(user_prompt, sensor_info)
             if error_text:
                 print(f"[AgentChatEngine] Firebase Telepathy error ({error_text}), falling back to Gemini...")
                 response_text, error_text = self._query_gemini(user_prompt, sys_context)
         elif self.current_provider == "ollama":
-            response_text, error_text = self._query_ollama(user_prompt, sys_context)
+            response_text, error_text = self._query_ollama(user_prompt, sys_context, image_base64)
             # If Ollama fails, auto-fallback to Gemini if key exists
             if error_text and self.gemini_api_key:
                 print(f"[AgentChatEngine] Ollama failed ({error_text}), falling back to Gemini Cloud...")
@@ -222,7 +229,7 @@ class AgentChatEngine(EventDispatcher):
             response_text, error_text = self._query_gemini(user_prompt, sys_context)
             if error_text:
                 print(f"[AgentChatEngine] Gemini failed ({error_text}), falling back to local Ollama...")
-                response_text, error_text = self._query_ollama(user_prompt, sys_context)
+                response_text, error_text = self._query_ollama(user_prompt, sys_context, image_base64)
 
         Clock.schedule_once(lambda dt: self._on_worker_finished(response_text, error_text), 0)
 
@@ -276,20 +283,24 @@ class AgentChatEngine(EventDispatcher):
         except Exception as e:
             return "", f"Firebase Telepathy error: {e}"
 
-    def _query_simple_agent(self, user_prompt, sensor_info):
+    def _query_simple_agent(self, user_prompt, sensor_info, image_base64=None):
         url = f"http://{self.server_host}:8080/api/simple_agent/chat"
         # Format full conversation history (up to last 10 messages)
         history = []
         for m in self.messages[-10:]:
             history.append({"role": m["role"], "content": m["content"]})
 
-        payload = json.dumps({
+        payload_dict = {
             "prompt": user_prompt,
             "history": history,
             "conversation_id": self.active_conversation_id,
             "sensor_context": sensor_info,
             "model": self.current_model
-        }).encode('utf-8')
+        }
+        if image_base64:
+            payload_dict["image_base64"] = image_base64
+
+        payload = json.dumps(payload_dict).encode('utf-8')
         try:
             req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=45) as resp:
@@ -334,7 +345,24 @@ class AgentChatEngine(EventDispatcher):
             self.active_layer = layer_str
             return layer_str
 
-    def _query_ollama(self, user_prompt, sys_prompt):
+    def _query_ollama(self, user_prompt, sys_prompt, image_base64=None):
+        if image_base64:
+            # Use local moondream vision model
+            url = f"http://{self.server_host}:{self.ollama_port}/api/generate"
+            payload = json.dumps({
+                "model": "moondream:latest",
+                "prompt": f"{sys_prompt}\n\nUser Question: {user_prompt or 'Describe what you see in this photo.'}",
+                "images": [image_base64],
+                "stream": False
+            }).encode('utf-8')
+            try:
+                req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=35) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    return data.get("response", ""), ""
+            except Exception as e:
+                return "", f"Local Vision Ollama error: {e}"
+
         url = f"http://{self.server_host}:{self.ollama_port}/api/chat"
         history = [{"role": "system", "content": sys_prompt}]
         for m in self.messages[-6:]:

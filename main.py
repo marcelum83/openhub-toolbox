@@ -103,6 +103,54 @@ class OpenHubApp(MDApp):
             print(f"[OpenHubApp] Discovery notice: {e}")
 
         Clock.schedule_once(lambda dt: self.updater.check_for_updates(self.launcher_screen.on_update_check_result), 1.2)
+        # Periodic background sensor telemetry streaming to PC Server
+        self._telemetry_enabled = True
+        Clock.schedule_interval(self._stream_telemetry, 3.0)
+
+    def _stream_telemetry(self, dt):
+        if not getattr(self, '_telemetry_enabled', True):
+            return
+        if not hasattr(self, 'hardware') or not self.hardware:
+            return
+        host = getattr(self.updater, 'server_host', '10.145.112.29:8080').split(':')[0]
+        if not host:
+            return
+
+        import json
+        import time
+        import urllib.request
+        import threading
+
+        try:
+            h, _ = self.hardware.get_compass_heading()
+            p, r, _ = self.hardware.get_orientation_angles()
+            lux, _ = self.hardware.get_lux()
+            db = self.hardware.get_audio_level_db()
+            torch = self.hardware.is_torch_active()
+
+            payload = json.dumps({
+                "device": "Pixel 7a",
+                "heading": round(h, 1),
+                "pitch": round(p, 1),
+                "roll": round(r, 1),
+                "lux": round(lux, 1),
+                "db": round(db, 1),
+                "torch": torch,
+                "timestamp": time.time()
+            }).encode('utf-8')
+
+            def _send():
+                try:
+                    url = f"http://{host}:8080/api/remote/telemetry"
+                    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+                    with urllib.request.urlopen(req, timeout=1.5) as resp:
+                        pass
+                except Exception:
+                    pass
+
+            threading.Thread(target=_send, daemon=True).start()
+        except Exception:
+            pass
 
     def refresh_modules(self):
         """Scans the modules directory and refreshes both scratch and permanent shelves."""
@@ -134,13 +182,16 @@ class OpenHubApp(MDApp):
 
     def on_pause(self):
         """Handle Android home button / app switch to background."""
+        self._telemetry_enabled = False
         if hasattr(self, 'hardware') and self.hardware:
             self.hardware.stop_sensors()
         return True
 
     def on_resume(self):
         """Handle Android app coming back to foreground."""
-        pass
+        self._telemetry_enabled = True
+        if hasattr(self, 'hardware') and self.hardware:
+            self.hardware.start_sensors()
 
 
 if __name__ == '__main__':

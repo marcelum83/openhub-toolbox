@@ -223,6 +223,21 @@ class AgentChatScreen(Screen):
         self.btn_tts.bind(on_release=self.toggle_tts)
         nav_bar.add_widget(self.btn_tts)
 
+        self.hands_free_enabled = False
+        self.btn_auto_voice = Button(
+            text="🔁",
+            size_hint_x=None,
+            width=dp(38),
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=(0.5, 0.5, 0.6, 1.0),
+            bold=True,
+            font_size="15sp",
+            always_release=True
+        )
+        self.btn_auto_voice.bind(on_release=self.toggle_hands_free)
+        nav_bar.add_widget(self.btn_auto_voice)
+
         btn_clear = Button(
             text="🗑️",
             size_hint_x=None,
@@ -337,15 +352,31 @@ class AgentChatScreen(Screen):
         self.txt_input.bind(on_text_validate=self.on_send_pressed)
         input_bar.add_widget(self.txt_input)
 
-        self.btn_voice = Button(
-            text="🎙️",
+        self.pending_image_b64 = None
+
+        self.btn_camera = Button(
+            text="📷",
             size_hint_x=None,
-            width=dp(46),
+            width=dp(42),
             background_normal="",
             background_color=(0.18, 0.20, 0.30, 1.0),
             color=(0.02, 0.71, 0.83, 1.0),
             bold=True,
-            font_size="18sp",
+            font_size="17sp",
+            always_release=True
+        )
+        self.btn_camera.bind(on_release=self.on_camera_pressed)
+        input_bar.add_widget(self.btn_camera)
+
+        self.btn_voice = Button(
+            text="🎙️",
+            size_hint_x=None,
+            width=dp(42),
+            background_normal="",
+            background_color=(0.18, 0.20, 0.30, 1.0),
+            color=(0.02, 0.71, 0.83, 1.0),
+            bold=True,
+            font_size="17sp",
             always_release=True
         )
         self.btn_voice.bind(on_release=self.on_voice_pressed)
@@ -354,7 +385,7 @@ class AgentChatScreen(Screen):
         self.btn_send = Button(
             text="SEND",
             size_hint_x=None,
-            width=dp(72),
+            width=dp(64),
             background_normal="",
             background_color=ColorSystem.PRIMARY,
             color=(0.05, 0.05, 0.08, 1.0),
@@ -501,10 +532,47 @@ class AgentChatScreen(Screen):
 
     def on_send_pressed(self, *args):
         msg = self.txt_input.text.strip()
-        if not msg or self.agent.is_busy:
+        img_b64 = getattr(self, 'pending_image_b64', None)
+        if (not msg and not img_b64) or self.agent.is_busy:
             return
         self.txt_input.text = ""
-        self.agent.send_user_message(msg)
+        self.pending_image_b64 = None
+        self.btn_camera.background_color = (0.18, 0.20, 0.30, 1.0)
+        self.agent.send_user_message(msg, image_base64=img_b64)
+
+    def on_camera_pressed(self, *args):
+        try:
+            from core.camera import CameraBridge
+            self.lbl_status.text = "📷 Opening Camera..."
+            self.btn_camera.background_color = (0.85, 0.55, 0.15, 1.0)
+            cam = CameraBridge(on_image_callback=self.on_camera_result, on_error_callback=self.on_camera_error)
+            cam.capture_photo()
+        except Exception as e:
+            self.lbl_status.text = f"Camera error: {e}"
+            self.btn_camera.background_color = (0.18, 0.20, 0.30, 1.0)
+
+    def on_camera_result(self, b64_str):
+        self.pending_image_b64 = b64_str
+        self.btn_camera.background_color = (0.15, 0.68, 0.38, 1.0) # Emerald Green
+        self.lbl_status.text = "📷 Photo attached! Press SEND or speak your question."
+        if hasattr(self.app_manager, 'hardware') and self.app_manager.hardware:
+            self.app_manager.hardware.vibrate(35)
+
+    def on_camera_error(self, err_msg):
+        self.btn_camera.background_color = (0.18, 0.20, 0.30, 1.0)
+        self.lbl_status.text = f"📷 {err_msg}"
+
+    def toggle_hands_free(self, *args):
+        self.hands_free_enabled = not self.hands_free_enabled
+        self.btn_auto_voice.color = (0.15, 0.68, 0.38, 1.0) if self.hands_free_enabled else (0.5, 0.5, 0.6, 1.0)
+        status_msg = "🔁 Hands-Free Conversation: ACTIVE (Continuous Loop)" if self.hands_free_enabled else "🔁 Hands-Free: OFF"
+        self.lbl_status.text = status_msg
+        if self.hands_free_enabled and not self.agent.is_busy:
+            self.on_voice_pressed()
+
+    def _auto_rearm_voice(self):
+        if getattr(self, "hands_free_enabled", False) and not self.agent.is_busy:
+            self.on_voice_pressed()
 
     def on_busy_changed(self, inst, busy):
         self.btn_send.disabled = busy
@@ -539,6 +607,11 @@ class AgentChatScreen(Screen):
         if role == "assistant" and content and getattr(self, "tts_enabled", True):
             if hasattr(self.app_manager, 'hardware') and self.app_manager.hardware:
                 self.app_manager.hardware.speak(content)
+
+        # Hands-free loop: automatically listen again once speech finishes
+        if role == "assistant" and getattr(self, "hands_free_enabled", False):
+            delay = max(2.5, min(14.0, len(content) / 14.0)) if getattr(self, "tts_enabled", True) else 1.0
+            Clock.schedule_once(lambda dt: self._auto_rearm_voice(), delay)
 
     def on_error_received(self, inst, error_msg):
         err_bubble = ChatBubble(role="assistant", text=f"❌ {error_msg}")
