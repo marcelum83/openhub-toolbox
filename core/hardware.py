@@ -213,3 +213,54 @@ class HardwareBridge:
 
     def set_simulated_lux(self, lux):
         self._simulated_lux = max(0.0, float(lux))
+
+    def speak(self, text: str):
+        """
+        Speaks text on Google Pixel 7a using native Android Google Text-to-Speech
+        or desktop simulation speech.
+        """
+        if not text:
+            return
+        import re
+        cleaned = re.sub(r'```[\s\S]*?```', '', text)
+        cleaned = re.sub(r'`[^`]*`', '', cleaned)
+        cleaned = re.sub(r'https?://\S+', '', cleaned)
+        cleaned = re.sub(r'\[.*?\]', '', cleaned)
+        cleaned = re.sub(r'[\*\#\_]', '', cleaned).strip()
+        if not cleaned:
+            return
+
+        # 1. Android Native TTS via Plyer
+        try:
+            from plyer import tts
+            tts.speak(message=cleaned[:3000])
+            return
+        except Exception as pe:
+            pass
+
+        # 2. Android Native TextToSpeech via pyjnius
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            TextToSpeech = autoclass('android.speech.tts.TextToSpeech')
+            Locale = autoclass('java.util.Locale')
+            activity = PythonActivity.mActivity
+            if activity:
+                if not hasattr(self, '_android_tts') or not self._android_tts:
+                    self._android_tts = TextToSpeech(activity, None)
+                    self._android_tts.setLanguage(Locale.US)
+                self._android_tts.speak(cleaned[:3000], TextToSpeech.QUEUE_FLUSH, None, "openhub_tts")
+                return
+        except Exception:
+            pass
+
+        # 3. Desktop Linux Simulation fallback (spd-say or espeak)
+        try:
+            import subprocess
+            if subprocess.run(["which", "spd-say"], capture_output=True).returncode == 0:
+                subprocess.Popen(["spd-say", "-t", "female2", cleaned[:300]])
+            elif subprocess.run(["which", "espeak"], capture_output=True).returncode == 0:
+                subprocess.Popen(["espeak", cleaned[:300]])
+        except Exception:
+            pass
+

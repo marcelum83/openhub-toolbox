@@ -208,10 +208,25 @@ class AgentChatScreen(Screen):
         self.btn_provider.bind(on_release=self.toggle_provider)
         nav_bar.add_widget(self.btn_provider)
 
+        self.tts_enabled = True
+        self.btn_tts = Button(
+            text="🔊",
+            size_hint_x=None,
+            width=dp(38),
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=(0.02, 0.71, 0.83, 1.0),
+            bold=True,
+            font_size="15sp",
+            always_release=True
+        )
+        self.btn_tts.bind(on_release=self.toggle_tts)
+        nav_bar.add_widget(self.btn_tts)
+
         btn_clear = Button(
             text="🗑️",
             size_hint_x=None,
-            width=dp(42),
+            width=dp(38),
             background_normal="",
             background_color=ColorSystem.SURFACE_HOVER,
             color=ColorSystem.TEXT_PRIMARY,
@@ -501,6 +516,13 @@ class AgentChatScreen(Screen):
             self.lbl_status.text = "Ready"
             self.lbl_status.color = (0.6, 0.6, 0.7, 1.0)
 
+    def toggle_tts(self, *args):
+        self.tts_enabled = not self.tts_enabled
+        self.btn_tts.text = "🔊" if self.tts_enabled else "🔇"
+        self.btn_tts.color = (0.02, 0.71, 0.83, 1.0) if self.tts_enabled else (0.5, 0.5, 0.6, 1.0)
+        status_msg = "Phone Speech: ON (Google TTS)" if self.tts_enabled else "Phone Speech: MUTED"
+        self.lbl_status.text = status_msg
+
     def on_message_received(self, inst, role, content, tool_code, tool_title):
         bubble = ChatBubble(
             role=role,
@@ -512,6 +534,11 @@ class AgentChatScreen(Screen):
         )
         self.chat_list.add_widget(bubble)
         Clock.schedule_once(lambda dt: setattr(self.scroll, 'scroll_y', 0), 0.1)
+
+        # Trigger native speech on Pixel 7a for assistant replies
+        if role == "assistant" and content and getattr(self, "tts_enabled", True):
+            if hasattr(self.app_manager, 'hardware') and self.app_manager.hardware:
+                self.app_manager.hardware.speak(content)
 
     def on_error_received(self, inst, error_msg):
         err_bubble = ChatBubble(role="assistant", text=f"❌ {error_msg}")
