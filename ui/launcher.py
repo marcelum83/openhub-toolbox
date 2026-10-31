@@ -1302,11 +1302,27 @@ class LauncherScreen(Screen):
             spacing=dp(8)
         )
         with self.drawer_overlay.canvas.before:
-            Color(0.07, 0.07, 0.11, 1.0)
+            Color(0.06, 0.06, 0.09, 1.0)
             self.drawer_bg = Rectangle(size=self.drawer_overlay.size, pos=self.drawer_overlay.pos)
             Color(*ColorSystem.PRIMARY)
             self.drawer_border = Line(points=[self.drawer_overlay.x, self.drawer_overlay.top, self.drawer_overlay.right, self.drawer_overlay.top], width=2.0)
-        self.drawer_overlay.bind(size=lambda inst, v: setattr(self.drawer_bg, 'size', inst.size) or setattr(self.drawer_bg, 'pos', inst.pos) or setattr(self.drawer_border, 'points', [inst.x, inst.top, inst.right, inst.top]))
+
+        def _update_drawer_bg(inst, *args):
+            self.drawer_bg.size = inst.size
+            self.drawer_bg.pos = inst.pos
+            self.drawer_border.points = [inst.x, inst.top, inst.right, inst.top]
+
+        self.drawer_overlay.bind(size=_update_drawer_bg, pos=_update_drawer_bg)
+
+        # Intercept touch events on the drawer when open to prevent fall-through to home screen
+        orig_drawer_touch_down = self.drawer_overlay.on_touch_down
+        def _drawer_on_touch_down(touch):
+            if self.drawer_open and self.drawer_overlay.collide_point(*touch.pos):
+                if orig_drawer_touch_down(touch):
+                    return True
+                return True
+            return orig_drawer_touch_down(touch)
+        self.drawer_overlay.on_touch_down = _drawer_on_touch_down
 
         # Top Header: Close Button Bar
         drawer_head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(38), spacing=dp(8))
@@ -1427,6 +1443,18 @@ class LauncherScreen(Screen):
 
         # Drawer 4-Column Grid of All Modules
         self.drawer_scroll = ScrollView(do_scroll_x=False, do_scroll_y=True, effect_cls='ScrollEffect')
+        with self.drawer_scroll.canvas.before:
+            Color(0.08, 0.08, 0.12, 0.95)
+            self.drawer_scroll_bg = RoundedRectangle(size=self.drawer_scroll.size, pos=self.drawer_scroll.pos, radius=[dp(14)])
+            Color(*ColorSystem.SURFACE_BORDER)
+            self.drawer_scroll_bdr = Line(rounded_rectangle=(self.drawer_scroll.x, self.drawer_scroll.y, self.drawer_scroll.width, self.drawer_scroll.height, dp(14)), width=1.0)
+
+        def _update_drawer_scroll_bg(inst, *args):
+            self.drawer_scroll_bg.size = inst.size
+            self.drawer_scroll_bg.pos = inst.pos
+            self.drawer_scroll_bdr.rounded_rectangle = (inst.x, inst.y, inst.width, inst.height, dp(14))
+
+        self.drawer_scroll.bind(size=_update_drawer_scroll_bg, pos=_update_drawer_scroll_bg)
         self.drawer_grid = GridLayout(cols=4, spacing=dp(10), padding=[dp(6), dp(8), dp(6), dp(8)], size_hint_y=None)
         self.drawer_grid.bind(minimum_height=self.drawer_grid.setter('height'))
         self.drawer_scroll.add_widget(self.drawer_grid)
@@ -1481,6 +1509,17 @@ class LauncherScreen(Screen):
         self.drawer_open = open_drawer
         target_y = 0.0 if open_drawer else -1.05
         anim = Animation(pos_hint={'x': 0, 'y': target_y}, duration=0.20, t='out_cubic')
+        
+        def _sync_drawer_pos(*args):
+            self.drawer_bg.size = self.drawer_overlay.size
+            self.drawer_bg.pos = self.drawer_overlay.pos
+            self.drawer_border.points = [self.drawer_overlay.x, self.drawer_overlay.top, self.drawer_overlay.right, self.drawer_overlay.top]
+            if hasattr(self, 'drawer_scroll_bg'):
+                self.drawer_scroll_bg.size = self.drawer_scroll.size
+                self.drawer_scroll_bg.pos = self.drawer_scroll.pos
+                self.drawer_scroll_bdr.rounded_rectangle = (self.drawer_scroll.x, self.drawer_scroll.y, self.drawer_scroll.width, self.drawer_scroll.height, dp(14))
+
+        anim.bind(on_progress=_sync_drawer_pos, on_complete=_sync_drawer_pos)
         anim.start(self.drawer_overlay)
         if open_drawer and self.app_manager.hardware:
             self.app_manager.hardware.vibrate(25)
