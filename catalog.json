@@ -1,0 +1,378 @@
+[
+  {
+    "id": "bouncing_ball",
+    "dir_name": "bouncing_ball",
+    "name": "Kinetic Physics & Gravity Ball",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Experiments",
+    "description": "Interactive kinetic ball physics simulation with accelerometer tilt steering, touch throwing, gravity & haptic collision pulses.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "cellular_automata",
+    "dir_name": "cellular_automata",
+    "name": "Cellular Automata",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Experiments",
+    "description": "Conway's Game of Life & Viscera CA simulation engine with touch drawing, presets & variable tick speed.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "compass",
+    "dir_name": "compass",
+    "name": "Digital Compass",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Field",
+    "description": "Magnetic azimuth compass & cardinal heading tracker.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "unit_converter",
+    "dir_name": "converter",
+    "name": "Unit Converter",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Tools",
+    "description": "Multi-dimensional physical, engineering & lunar measurement converter.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "decibel_meter",
+    "dir_name": "decibel",
+    "name": "Sound Level Meter",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Field",
+    "description": "Real-time acoustic sound pressure (dB) meter & peak level analyzer.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "dice_roller",
+    "dir_name": "dice_roller",
+    "name": "Polyhedral Dice",
+    "version": "1.0.0",
+    "author": "mobile_agent",
+    "category": "Tools",
+    "description": "Multi-die roller with haptics (d4, d6, d8, d10, d12, d20, d100)",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "eclipse_mud",
+    "dir_name": "eclipse_mud",
+    "name": "Eclipse Phase MUD",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Experiments",
+    "description": "Transhuman Roguelike MUD set in the Eclipse Phase universe with LLM Game Master, Ego/Morph resleeving, tactical Mesh hacking, and reactive NPCs.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "README.md",
+      "engine.py",
+      "llm_bridge.py",
+      "main.py",
+      "manifest.json",
+      "models.py",
+      "world_gen.py"
+    ]
+  },
+  {
+    "id": "eclipse_survivors",
+    "dir_name": "eclipse_survivors",
+    "name": "Eclipse Survivors",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Experiments",
+    "description": "Top-down transhuman action-roguelite set in Eclipse Phase. Explore derelict station decks, auto-fire cybernetic weapons, draft augment upgrades, and survive Exsurgent incursions.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "README.md",
+      "arena.py",
+      "dialogue_modal.py",
+      "game_state.py",
+      "main.py",
+      "manifest.json",
+      "upgrade_modal.py"
+    ]
+  },
+  {
+    "id": "field_ops",
+    "dir_name": "field_ops",
+    "name": "Field Operations & Jobs",
+    "version": "1.0.0",
+    "author": "Nexus Core",
+    "category": "Field",
+    "description": "Mobile field telemetry logger, client job browser, and autonomous Google Workspace completion hook.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "flashlight",
+    "dir_name": "flashlight",
+    "name": "Tactical Flashlight",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Field",
+    "description": "Physical LED torch, variable frequency strobe (1-20 Hz), SOS beacon & lantern.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "spirit_level",
+    "dir_name": "level",
+    "name": "Spirit Level",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Tools",
+    "description": "2-axis bubble level & digital inclinometer using Pixel 7a IMU.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "lib_explorer",
+    "dir_name": "lib_explorer",
+    "name": "Python Library Explorer",
+    "version": "1.0.0",
+    "author": "openhub",
+    "category": "Tools",
+    "description": "Interactive inspector for Python standard libraries, Kivy components, functions, classes and live docstrings.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "lux_meter",
+    "dir_name": "lux_meter",
+    "name": "Ambient Light Meter",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Field",
+    "description": "Real-time illuminance (Lux) sensor, light condition classifier & min/max tracker.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "metronome",
+    "dir_name": "metronome",
+    "name": "Haptic Metronome",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Tools",
+    "description": "Tactile audio & haptic metronome with tap tempo & time signatures.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "monster_battle",
+    "dir_name": "monster_battle",
+    "name": "Monster Battle RPG",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Experiments",
+    "description": "Turn-based creature battle RPG with HP bars, visual battle arena, moves, catching mechanics & haptic impacts.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "mutation_world",
+    "dir_name": "mutation_world",
+    "name": "Mutation World",
+    "version": "1.0.0",
+    "author": "openhub",
+    "category": "Experiments",
+    "description": "Agentic self-mutating dynamic Kivy canvas that prompts Gemini AI to rewrite and evolve its UI widgets in real time.",
+    "entrypoint": "main.py",
+    "trust_level": "experimental",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "network_chat",
+    "dir_name": "network_chat",
+    "name": "Nexus Terminal & Chat",
+    "version": "1.0.0",
+    "author": "openhub",
+    "category": "Agents",
+    "description": "Real-time communication bridge to Aurelian Hub, local LAN peers and Gemini ACE agent.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "nexus_remote",
+    "dir_name": "nexus_remote",
+    "name": "Nexus Remote & Telemetry Bridge",
+    "version": "1.1.0",
+    "author": "mike",
+    "category": "Field",
+    "description": "Wireless PC trackpad, media/presentation controller, remote typing, 3D sensor telemetry & ACE-OS Cognitive Agent bridge.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "pitch_tuner",
+    "dir_name": "pitch_tuner",
+    "name": "Pitch Tuner",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Tools",
+    "description": "Chromatic instrument tuner, \u00b150 cents tuning gauge & audio spectrum visualizer.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "reaction",
+    "dir_name": "reaction",
+    "name": "reaction",
+    "version": "1.0.0",
+    "author": "mobile_agent",
+    "category": "Tools",
+    "description": "Saved tool: reaction",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "stopwatch",
+    "dir_name": "stopwatch",
+    "name": "Precision Stopwatch",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Tools",
+    "description": "Millisecond precision stopwatch with split lap tracking.",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "tmp_002_ive_created_a_simple",
+    "dir_name": "tmp_002_ive_created_a_simple",
+    "name": "Tmp 002 Ive Created A Simple",
+    "version": "1.0.0",
+    "author": "mobile_agent",
+    "category": "Scratch",
+    "description": "Experiment (tmp_002_ive_created_a_simple.py)",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  },
+  {
+    "id": "tmp_003_ive_created_a_simple",
+    "dir_name": "tmp_003_ive_created_a_simple",
+    "name": "Tmp 003 Ive Created A Simple",
+    "version": "1.0.0",
+    "author": "mobile_agent",
+    "category": "Tools",
+    "description": "Saved tool: Tmp 003 Ive Created A Simple",
+    "entrypoint": "main.py",
+    "trust_level": "trusted",
+    "files": [
+      "main.py",
+      "main.py.txt",
+      "manifest.json"
+    ]
+  }
+]

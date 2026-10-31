@@ -166,7 +166,7 @@ class ModuleManager:
         except Exception:
             pass
 
-    def publish_module(self, descriptor, server_host="10.62.206.29:8080", callback=None):
+    def publish_module(self, descriptor, server_host="10.112.214.29:8080", callback=None):
         """Asynchronously publishes a tool to the Central OpenHub & GitHub Repository."""
         def _worker():
             try:
@@ -194,8 +194,187 @@ class ModuleManager:
         import threading
         threading.Thread(target=_worker, daemon=True).start()
 
-    def fetch_community_catalog(self, server_host="10.62.206.29:8080", callback=None):
-        """Fetches catalog of modules from the central repository."""
+    def fetch_github_catalog(self, repo="marcelum83/openhub-toolbox", branch="master", token=None, callback=None):
+        """Fetches the module catalog directly from GitHub repository or raw catalog.json."""
+        def _worker():
+            try:
+                import urllib.request
+                from kivy.clock import Clock
+                headers = {"User-Agent": "OpenHub-Client"}
+                if token and token.strip():
+                    headers["Authorization"] = f"token {token.strip()}"
+
+                catalog = None
+                # Strategy 1: Try reading catalog.json directly
+                catalog_url = f"https://raw.githubusercontent.com/{repo}/{branch}/catalog.json"
+                try:
+                    req = urllib.request.Request(catalog_url, headers=headers)
+                    with urllib.request.urlopen(req, timeout=7) as resp:
+                        if resp.status == 200:
+                            catalog = json.loads(resp.read().decode('utf-8'))
+                except Exception as cat_err:
+                    # If raw failed with token, try API contents endpoint with raw Accept header
+                    if token and token.strip():
+                        try:
+                            api_url = f"https://api.github.com/repos/{repo}/contents/catalog.json?ref={branch}"
+                            api_headers = dict(headers)
+                            api_headers["Accept"] = "application/vnd.github.v3.raw"
+                            req = urllib.request.Request(api_url, headers=api_headers)
+                            with urllib.request.urlopen(req, timeout=7) as resp:
+                                if resp.status == 200:
+                                    catalog = json.loads(resp.read().decode('utf-8'))
+                        except Exception:
+                            catalog = None
+
+                # Strategy 2: Fallback to GitHub Contents API for modules/
+                if not catalog:
+                    from concurrent.futures import ThreadPoolExecutor
+                    api_url = f"https://api.github.com/repos/{repo}/contents/modules?ref={branch}"
+                    req = urllib.request.Request(api_url, headers=headers)
+                    with urllib.request.urlopen(req, timeout=9) as resp:
+                        items = json.loads(resp.read().decode('utf-8'))
+                    
+                    dirs = [it["name"] for it in items if it.get("type") == "dir" and it.get("name") not in ("scratch", "__pycache__")]
+                    
+                    def _fetch_one_manifest(dir_name):
+                        m_url = f"https://raw.githubusercontent.com/{repo}/{branch}/modules/{dir_name}/manifest.json"
+                        try:
+                            m_req = urllib.request.Request(m_url, headers=headers)
+                            with urllib.request.urlopen(m_req, timeout=4) as m_resp:
+                                m_data = json.loads(m_resp.read().decode('utf-8'))
+                                m_data["dir_name"] = dir_name
+                                return m_data
+                        except Exception:
+                            return {
+                                "id": dir_name,
+                                "dir_name": dir_name,
+                                "name": dir_name.replace("_", " ").title(),
+                                "version": "1.0.0",
+                                "author": "community",
+                                "category": "Tools",
+                                "description": f"Sub-app: {dir_name}",
+                                "files": ["manifest.json", "main.py"]
+                            }
+
+                    with ThreadPoolExecutor(max_workers=8) as executor:
+                        catalog = list(executor.map(_fetch_one_manifest, dirs))
+
+                if callback:
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt: callback(True, catalog, None), 0)
+            except Exception as e:
+                if callback:
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt, err=e: callback(False, None, str(err)), 0)
+
+        import threading
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def install_github_module(self, item_or_id, repo="marcelum83/openhub-toolbox", branch="master", token=None, callback=None):
+        """Downloads a module directly from GitHub into local modules/ directory."""
+        def _worker():
+            try:
+                import urllib.request
+                from kivy.clock import Clock
+
+                if isinstance(item_or_id, dict):
+                    dir_name = item_or_id.get("dir_name") or item_or_id.get("id")
+                    file_list = item_or_id.get("files") or ["manifest.json", "main.py"]
+                else:
+                    dir_name = str(item_or_id)
+                    file_list = ["manifest.json", "main.py"]
+
+                if "manifest.json" not in file_list:
+                    file_list.append("manifest.json")
+                if "main.py" not in file_list:
+                    file_list.append("main.py")
+
+                headers = {"User-Agent": "OpenHub-Client"}
+                if token and token.strip():
+                    headers["Authorization"] = f"token {token.strip()}"
+
+                target_dir = os.path.join(self.modules_dir, dir_name)
+                os.makedirs(target_dir, exist_ok=True)
+
+                saved_files = []
+                for fname in file_list:
+                    raw_url = f"https://raw.githubusercontent.com/{repo}/{branch}/modules/{dir_name}/{fname}"
+                    content = None
+                    try:
+                        req = urllib.request.Request(raw_url, headers=headers)
+                        with urllib.request.urlopen(req, timeout=8) as resp:
+                            if resp.status == 200:
+                                content = resp.read()
+                    except Exception:
+                        # Fallback to GitHub contents API if raw failed
+                        if token and token.strip():
+                            api_url = f"https://api.github.com/repos/{repo}/contents/modules/{dir_name}/{fname}?ref={branch}"
+                            api_headers = dict(headers)
+                            api_headers["Accept"] = "application/vnd.github.v3.raw"
+                            try:
+                                api_req = urllib.request.Request(api_url, headers=api_headers)
+                                with urllib.request.urlopen(api_req, timeout=8) as resp:
+                                    if resp.status == 200:
+                                        content = resp.read()
+                            except Exception:
+                                pass
+
+                    if content is not None:
+                        dest_path = os.path.join(target_dir, fname)
+                        with open(dest_path, "wb") as f:
+                            f.write(content)
+                        saved_files.append(fname)
+                        if fname == "main.py":
+                            with open(os.path.join(target_dir, "main.py.txt"), "wb") as f:
+                                f.write(content)
+
+                if "main.py" not in saved_files:
+                    raise RuntimeError(f"Failed to download main.py for module '{dir_name}' from GitHub.")
+
+                if callback:
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt: callback(True, dir_name, None), 0)
+            except Exception as e:
+                if callback:
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt, err=e: callback(False, None, str(err)), 0)
+
+        import threading
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def uninstall_module(self, mod_id_or_dir):
+        """Safely uninstalls and removes a permanent module from local modules/ storage."""
+        if not mod_id_or_dir or mod_id_or_dir == "scratch":
+            return False
+        # Try direct directory match
+        target_dir = os.path.join(self.modules_dir, mod_id_or_dir)
+        if not os.path.isdir(target_dir):
+            # Check by manifest id
+            found = False
+            for item in os.listdir(self.modules_dir):
+                m_path = os.path.join(self.modules_dir, item, "manifest.json")
+                if os.path.exists(m_path):
+                    try:
+                        with open(m_path, "r", encoding="utf-8") as f:
+                            d = json.load(f)
+                            if d.get("id") == mod_id_or_dir:
+                                target_dir = os.path.join(self.modules_dir, item)
+                                found = True
+                                break
+                    except Exception:
+                        pass
+            if not found:
+                return False
+
+        try:
+            shutil.rmtree(target_dir)
+            return True
+        except Exception as e:
+            print(f"[ModuleManager] Error uninstalling {mod_id_or_dir}: {e}")
+            return False
+
+    def fetch_community_catalog(self, server_host="10.112.214.29:8080", callback=None):
+        """Fetches catalog of modules from the central workstation LAN server."""
         def _worker():
             try:
                 import urllib.request
@@ -214,8 +393,8 @@ class ModuleManager:
         import threading
         threading.Thread(target=_worker, daemon=True).start()
 
-    def install_community_module(self, mod_id, server_host="10.62.206.29:8080", callback=None):
-        """Downloads a community tool from the central repository into local storage."""
+    def install_community_module(self, mod_id, server_host="10.112.214.29:8080", callback=None):
+        """Downloads a community tool from the central workstation LAN server into local storage."""
         def _worker():
             try:
                 import urllib.request
@@ -245,3 +424,31 @@ class ModuleManager:
 
         import threading
         threading.Thread(target=_worker, daemon=True).start()
+
+    def fetch_catalog(self, updater, callback=None):
+        """Unified catalog fetcher based on current settings (GitHub or LAN Server)."""
+        src = updater.get_catalog_source()
+        if src == "github":
+            self.fetch_github_catalog(
+                repo=updater.get_github_repo(),
+                branch=updater.get_github_branch(),
+                token=updater.get_github_token(),
+                callback=callback
+            )
+        else:
+            self.fetch_community_catalog(server_host=updater.server_host, callback=callback)
+
+    def install_module(self, item_or_id, updater, callback=None):
+        """Unified module installer based on current settings (GitHub or LAN Server)."""
+        src = updater.get_catalog_source()
+        if src == "github":
+            self.install_github_module(
+                item_or_id,
+                repo=updater.get_github_repo(),
+                branch=updater.get_github_branch(),
+                token=updater.get_github_token(),
+                callback=callback
+            )
+        else:
+            mod_id = item_or_id.get("id") if isinstance(item_or_id, dict) else item_or_id
+            self.install_community_module(mod_id, server_host=updater.server_host, callback=callback)

@@ -48,6 +48,8 @@ class ColorSystem:
         "bouncing_ball": {"badge": "BAL", "symbol": "●", "bg": (0.24, 0.10, 0.05, 1.0), "border": (0.95, 0.45, 0.15, 1.0), "accent": (1.0, 0.55, 0.25, 1.0)},
         "agent": {"badge": "ACE", "symbol": "◈", "bg": (0.18, 0.06, 0.26, 1.0), "border": (0.65, 0.35, 0.95, 1.0), "accent": (0.80, 0.50, 1.0, 1.0)},
         "forge": {"badge": "DEV", "symbol": "⚡", "bg": (0.05, 0.20, 0.22, 1.0), "border": (0.05, 0.80, 0.75, 1.0), "accent": (0.15, 0.95, 0.90, 1.0)},
+        "eclipse_mud": {"badge": "EP", "symbol": "🌌", "bg": (0.12, 0.05, 0.22, 1.0), "border": (0.02, 0.71, 0.83, 1.0), "accent": (0.70, 0.40, 1.0, 1.0)},
+        "eclipse_survivors": {"badge": "SURV", "symbol": "⚔", "bg": (0.22, 0.06, 0.08, 1.0), "border": (0.95, 0.45, 0.15, 1.0), "accent": (1.0, 0.65, 0.25, 1.0)},
         "settings": {"badge": "CFG", "symbol": "⚙", "bg": (0.12, 0.12, 0.16, 1.0), "border": (0.60, 0.60, 0.70, 1.0), "accent": (0.80, 0.80, 0.90, 1.0)},
     }
 

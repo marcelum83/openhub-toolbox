@@ -1,0 +1,10 @@
+{
+  "id": "network_chat",
+  "name": "Nexus Terminal & Chat",
+  "version": "1.0.0",
+  "author": "openhub",
+  "category": "Agents",
+  "description": "Real-time communication bridge to Aurelian Hub, local LAN peers and Gemini ACE agent.",
+  "entrypoint": "main.py",
+  "trust_level": "trusted"
+}

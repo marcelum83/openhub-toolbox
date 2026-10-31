@@ -112,8 +112,9 @@ Provide a short 1-sentence summary of what you created or changed. Always return
 
 class AgentChatEngine(EventDispatcher):
     is_busy = BooleanProperty(False)
-    current_provider = StringProperty("ollama") # "ollama" or "gemini"
+    current_provider = StringProperty("ollama") # "ollama", "simple_agent", "firebase", or "gemini"
     current_model = StringProperty(DEFAULT_OLLAMA_MODEL)
+    active_layer = StringProperty("L6_Prosecution")
     
     def __init__(self, host_bridge=None, **kwargs):
         super().__init__(**kwargs)
@@ -121,7 +122,7 @@ class AgentChatEngine(EventDispatcher):
         self.register_event_type('on_agent_error')
         self.host_bridge = host_bridge
         self.messages = [] # [{"role": "user"|"assistant", "content": str, "tool_code": str|None}]
-        self.server_host = "10.62.206.29"
+        self.server_host = "10.112.214.29"
         self.ollama_port = "11434"
         self.gemini_api_key = ""
         self.active_conversation_id = None
@@ -139,7 +140,7 @@ class AgentChatEngine(EventDispatcher):
             if os.path.exists(settings_file):
                 with open(settings_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    host_full = data.get("server_host", "10.62.206.29:8080")
+                    host_full = data.get("server_host", "10.112.214.29:8080")
                     self.server_host = host_full.split(":")[0]
                     self.gemini_api_key = data.get("gemini_api_key", "").strip()
                     self.current_provider = data.get("llm_provider", "ollama")
@@ -229,7 +230,7 @@ class AgentChatEngine(EventDispatcher):
         url = "https://firestore.googleapis.com/v1/projects/nexus-ops-2026/databases/(default)/documents/agent_commands"
         payload = {
             "fields": {
-                "target_app": {"stringValue": "nexus_studio"},
+                "target_app": {"stringValue": "simple_agent"},
                 "action": {"stringValue": "prompt"},
                 "status": {"stringValue": "PENDING"},
                 "timestamp": {"integerValue": str(int(time.time() * 1000))},
@@ -248,8 +249,30 @@ class AgentChatEngine(EventDispatcher):
             req = urllib.request.Request(url, data=req_data, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=12) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
-                doc_name = data.get("name", "").split("/")[-1]
-                return f"📡 **Command Dispatched via Cloud Telepathy!**\nDoc: `{doc_name}`\nNexus Studio on your PC received this prompt and is executing it in your workspace.", ""
+                doc_path = data.get("name", "")
+                doc_name = doc_path.split("/")[-1]
+
+            # Poll for remote workstation response (up to 15 seconds)
+            poll_url = f"https://firestore.googleapis.com/v1/{doc_path}"
+            for _ in range(10):
+                time.sleep(1.5)
+                try:
+                    p_req = urllib.request.Request(poll_url)
+                    with urllib.request.urlopen(p_req, timeout=4) as p_resp:
+                        p_data = json.loads(p_resp.read().decode('utf-8'))
+                        fields = p_data.get("fields", {})
+                        st = fields.get("status", {}).get("stringValue", "")
+                        if st == "COMPLETED":
+                            reply = fields.get("response", {}).get("stringValue", "")
+                            if reply:
+                                return reply, ""
+                        elif st == "ERROR":
+                            err = fields.get("error", {}).get("stringValue", "Remote agent execution failed.")
+                            return "", err
+                except Exception:
+                    pass
+
+            return f"📡 **Command Dispatched via Cloud Telepathy!**\nDoc: `{doc_name}`\nSimpleAgent on your workstation received this prompt. If SimpleAgent is running, it will complete shortly.", ""
         except Exception as e:
             return "", f"Firebase Telepathy error: {e}"
 
@@ -269,13 +292,47 @@ class AgentChatEngine(EventDispatcher):
         }).encode('utf-8')
         try:
             req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=40) as resp:
+            with urllib.request.urlopen(req, timeout=45) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 if "conversation_id" in data and data["conversation_id"]:
                     self.active_conversation_id = data["conversation_id"]
-                return data.get("response", ""), ""
+                if "active_layer" in data and data["active_layer"]:
+                    self.active_layer = data["active_layer"]
+
+                resp_text = data.get("response", "")
+                tools_run = data.get("tools_executed", [])
+                if tools_run and not resp_text.startswith("🔧"):
+                    summary = ", ".join([t.get("name", "tool") for t in tools_run])
+                    resp_text = f"🔧 *[Tools executed: {summary}]*\n\n{resp_text}"
+                return resp_text, ""
         except Exception as e:
             return "", f"SimpleAgent API error: {e}"
+
+    def get_active_layer(self):
+        url = f"http://{self.server_host}:8080/api/simple_agent/layer"
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                layer = data.get("active_layer", "L6_Prosecution")
+                self.active_layer = layer
+                return layer
+        except Exception:
+            return getattr(self, "active_layer", "L6_Prosecution")
+
+    def set_active_layer(self, layer_str):
+        url = f"http://{self.server_host}:8080/api/simple_agent/layer"
+        payload = json.dumps({"layer": layer_str}).encode('utf-8')
+        try:
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                layer = data.get("active_layer", layer_str)
+                self.active_layer = layer
+                return layer
+        except Exception:
+            self.active_layer = layer_str
+            return layer_str
 
     def _query_ollama(self, user_prompt, sys_prompt):
         url = f"http://{self.server_host}:{self.ollama_port}/api/chat"

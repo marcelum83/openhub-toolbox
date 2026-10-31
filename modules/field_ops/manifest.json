@@ -1,0 +1,10 @@
+{
+  "id": "field_ops",
+  "name": "Field Operations & Jobs",
+  "version": "1.0.0",
+  "author": "Nexus Core",
+  "category": "Field",
+  "description": "Mobile field telemetry logger, client job browser, and autonomous Google Workspace completion hook.",
+  "entrypoint": "main.py",
+  "trust_level": "trusted"
+}

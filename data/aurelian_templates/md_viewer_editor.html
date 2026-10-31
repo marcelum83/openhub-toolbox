@@ -1,0 +1,100 @@
+<div
+    style="font-family: 'Segoe UI', system-ui, sans-serif; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(15px); color: #e2e8f0; padding: 0; border-radius: 12px; border: 1px solid rgba(76, 201, 240, 0.3); margin-bottom: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); overflow: hidden; display: flex; flex-direction: column; max-height: 600px;">
+    <!-- Header / Toolbar -->
+    <div
+        style="background: rgba(30, 41, 59, 0.5); padding: 12px 20px; border-bottom: 1px solid rgba(76, 201, 240, 0.2); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="color: #4cc9f0; font-size: 1.2rem;">📝</span>
+            <span
+                style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8;">{{
+                title | default('Markdown Assistant') }}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button id="view-btn" onclick="toggleMode('view')"
+                style="background: rgba(76, 201, 240, 0.2); border: 1px solid #4cc9f0; color: #4cc9f0; padding: 4px 12px; border-radius: 4px; font-size: 0.7rem; cursor: pointer; transition: all 0.2s;">VIEW</button>
+            <button id="edit-btn" onclick="toggleMode('edit')"
+                style="background: transparent; border: 1px solid rgba(148, 163, 184, 0.3); color: #94a3b8; padding: 4px 12px; border-radius: 4px; font-size: 0.7rem; cursor: pointer; transition: all 0.2s;">EDIT</button>
+        </div>
+    </div>
+
+    <!-- Content Area -->
+    <div style="flex: 1; overflow-y: auto; padding: 20px; position: relative;">
+        <!-- Viewer Mode (Rendered) -->
+        <div id="md-viewer" style="display: block; line-height: 1.6; font-size: 0.95rem; color: #cbd5e1;">
+            {{ (markdown_content or content or 'No content provided.') | safe }}
+        </div>
+
+        <!-- Editor Mode (Raw) -->
+        <div id="md-editor" style="display: none; height: 100%;">
+            <textarea id="md-raw"
+                style="width: 100%; height: 300px; background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(76, 201, 240, 0.2); border-radius: 8px; color: #4cc9f0; font-family: 'Fira Code', 'Courier New', monospace; font-size: 0.85rem; padding: 15px; outline: none; resize: vertical;"
+                spellcheck="false">{{ markdown_raw or markdown_content or content or '' }}</textarea>
+
+            <div style="margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button onclick="saveMarkdown()"
+                    style="background: #4cc9f0; border: none; color: #0f172a; padding: 8px 20px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 15px rgba(76, 201, 240, 0.3);">SAVE
+                    CHANGES</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div
+        style="background: rgba(15, 23, 42, 0.4); padding: 8px 20px; font-size: 0.65rem; color: #64748b; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
+        <span>Path: {{ file_path | default('Aurelian Space') }}</span>
+        <span>Markdown System v1.0</span>
+    </div>
+
+    <script>
+        function toggleMode(mode) {
+            const viewer = document.getElementById('md-viewer');
+            const editor = document.getElementById('md-editor');
+            const vBtn = document.getElementById('view-btn');
+            const eBtn = document.getElementById('edit-btn');
+
+            if (mode === 'view') {
+                viewer.style.display = 'block';
+                editor.style.display = 'none';
+                vBtn.style.background = 'rgba(76, 201, 240, 0.2)';
+                vBtn.style.borderColor = '#4cc9f0';
+                vBtn.style.color = '#4cc9f0';
+                eBtn.style.background = 'transparent';
+                eBtn.style.borderColor = 'rgba(148, 163, 184, 0.3)';
+                eBtn.style.color = '#94a3b8';
+            } else {
+                viewer.style.display = 'none';
+                editor.style.display = 'block';
+                eBtn.style.background = 'rgba(76, 201, 240, 0.2)';
+                eBtn.style.borderColor = '#4cc9f0';
+                eBtn.style.color = '#4cc9f0';
+                vBtn.style.background = 'transparent';
+                vBtn.style.borderColor = 'rgba(148, 163, 184, 0.3)';
+                vBtn.style.color = '#94a3b8';
+            }
+        }
+
+        function saveMarkdown() {
+            const content = document.getElementById('md-raw').value;
+            const path = '{{ file_path | default("unknown") }}';
+
+            if (window.parent && window.parent.postMessage) {
+                window.parent.postMessage({
+                    type: 'markdown_update',
+                    content: content,
+                    path: path,
+                    title: '{{ title }}'
+                }, '*');
+
+                // Visual feedback
+                const btn = event.target;
+                const originalText = btn.innerText;
+                btn.innerText = 'SAVED!';
+                btn.style.background = '#22c55e';
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.style.background = '#4cc9f0';
+                }, 2000);
+            }
+        }
+    </script>
+</div>

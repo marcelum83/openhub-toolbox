@@ -1,0 +1,10 @@
+{
+  "id": "mutation_world",
+  "name": "Mutation World",
+  "version": "1.0.0",
+  "author": "openhub",
+  "category": "Experiments",
+  "description": "Agentic self-mutating dynamic Kivy canvas that prompts Gemini AI to rewrite and evolve its UI widgets in real time.",
+  "entrypoint": "main.py",
+  "trust_level": "experimental"
+}

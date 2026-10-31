@@ -1,0 +1,51 @@
+<div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(15px); color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(0, 188, 212, 0.3); margin-bottom: 25px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-width: 100%; position: relative;">
+    <div style="position: relative; z-index: 1;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid rgba(0, 188, 212, 0.2); padding-bottom: 15px;">
+            <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; background: linear-gradient(90deg, #00bcd4, #26c6da); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.5px;">
+                {{ title | default('Hybrid Architecture') }}
+            </h2>
+            <div style="font-size: 0.75rem; color: #80deea; background: rgba(0, 188, 212, 0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(0, 188, 212, 0.2); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+                OpenHub Structure
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 25px;">
+            {% for plane in planes %}
+            <div style="width: 90%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3); position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -15px; left: -15px; width: 40px; height: 40px; border-radius: 50%; background: {{ plane.color | default('rgba(0, 188, 212, 0.5)') }}; filter: blur(15px);"></div>
+                <h3 style="color: {{ plane.color | default('#00bcd4') }}; margin-top: 0; margin-bottom: 10px; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                    {{ plane.name }}
+                </h3>
+                <p style="font-size: 0.95rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 10px;">
+                    <strong>Role:</strong> {{ plane.role }}
+                </p>
+                <p style="font-size: 0.85rem; color: #a0aec0; line-height: 1.5;">
+                    <strong>Technology:</strong> {{ plane.technology }}
+                </p>
+                <p style="font-size: 0.85rem; color: #a0aec0; line-height: 1.5;">
+                    <strong>Function:</strong> {{ plane.function }}
+                </p>
+            </div>
+            {% if not loop.last %}
+            <div style="font-size: 2rem; color: #00bcd4; opacity: 0.6; animation: pulse 1.5s infinite alternate;">⬇️</div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        {% if footer %}
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; color: #64748b; font-size: 0.85rem;">
+            <span>{{ footer }}</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #00bcd4;"></span>
+                <span>Interconnected Systems</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+<style>
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.1); opacity: 1; }
+}
+</style>

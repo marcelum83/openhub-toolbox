@@ -1,0 +1,10 @@
+{
+  "id": "lib_explorer",
+  "name": "Python Library Explorer",
+  "version": "1.0.0",
+  "author": "openhub",
+  "category": "Tools",
+  "description": "Interactive inspector for Python standard libraries, Kivy components, functions, classes and live docstrings.",
+  "entrypoint": "main.py",
+  "trust_level": "trusted"
+}

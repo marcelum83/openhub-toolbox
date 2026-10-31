@@ -86,7 +86,23 @@ class OpenHubApp(MDApp):
     def on_start(self):
         """Called when the application starts and the window is ready."""
         self.refresh_modules()
-        Clock.schedule_once(lambda dt: self.updater.check_for_updates(self.launcher_screen.on_update_check_result), 1.0)
+
+        # Automatically discover and bind to Desktop Server on Wi-Fi / Hotspot
+        try:
+            from core.discovery import discover_server
+            def _on_discovered(host_str):
+                if host_str and host_str != self.updater.server_host:
+                    print(f"[OpenHubApp] 🚀 Auto-discovered Desktop Server at {host_str}!")
+                    self.updater.save_settings(server_host=host_str)
+                    if hasattr(self, 'agent_engine') and self.agent_engine:
+                        self.agent_engine.server_host = host_str.split(":")[0]
+                    if hasattr(self, 'launcher_screen') and self.launcher_screen:
+                        self.launcher_screen.show_toast(f"⚡ Connected to PC: {host_str}")
+            discover_server(timeout=1.5, callback=_on_discovered)
+        except Exception as e:
+            print(f"[OpenHubApp] Discovery notice: {e}")
+
+        Clock.schedule_once(lambda dt: self.updater.check_for_updates(self.launcher_screen.on_update_check_result), 1.2)
 
     def refresh_modules(self):
         """Scans the modules directory and refreshes both scratch and permanent shelves."""

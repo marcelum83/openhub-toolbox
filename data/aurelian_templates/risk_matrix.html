@@ -1,0 +1,169 @@
+<div
+    style="font-family: 'Segoe UI', system-ui, sans-serif; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(15px); color: #e2e8f0; padding: 25px; border-radius: 12px; border: 1px solid rgba(76, 201, 240, 0.3); margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <style>
+        .matrix-container {
+            display: grid;
+            grid-template-columns: 40px 1fr;
+            grid-template-rows: 1fr 40px;
+            gap: 10px;
+            margin-top: 20px;
+            aspect-ratio: 1.2 / 1;
+        }
+
+        .matrix-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .matrix-cell {
+            border: 0.5px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Color Zones */
+        .zone-low {
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .zone-med {
+            background: rgba(234, 179, 8, 0.1);
+        }
+
+        .zone-high {
+            background: rgba(249, 115, 22, 0.1);
+        }
+
+        .zone-crit {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .y-axis-label {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            text-align: center;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .x-axis-label {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            grid-column: 2;
+        }
+
+        .risk-node {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            transform: translate(-50%, 50%);
+            box-shadow: 0 0 10px currentColor;
+            cursor: pointer;
+            transition: transform 0.2s;
+            z-index: 10;
+        }
+
+        .risk-node:hover {
+            transform: translate(-50%, 50%) scale(1.5);
+        }
+
+        .risk-label {
+            position: absolute;
+            font-size: 0.65rem;
+            white-space: nowrap;
+            color: white;
+            padding: 2px 6px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0.7;
+            transform: translate(15px, -15px);
+        }
+
+        .matrix-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .matrix-title {
+            color: #4cc9f0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+    </style>
+
+    <div class="matrix-header">
+        <div class="matrix-title">📋 {{ title | default('Strategic Risk Matrix') }}</div>
+        <div style="font-size: 0.7rem; color: #94a3b8;">Impact vs Probability</div>
+    </div>
+
+    <div class="matrix-container">
+        <div class="y-axis-label">Impact (1-5)</div>
+        <div class="matrix-grid">
+            <!-- Row 5 (Critical Top) -->
+            <div class="matrix-cell zone-med"></div>
+            <div class="matrix-cell zone-high"></div>
+            <div class="matrix-cell zone-high"></div>
+            <div class="matrix-cell zone-crit"></div>
+            <div class="matrix-cell zone-crit"></div>
+            <!-- Row 4 -->
+            <div class="matrix-cell zone-med"></div>
+            <div class="matrix-cell zone-med"></div>
+            <div class="matrix-cell zone-high"></div>
+            <div class="matrix-cell zone-high"></div>
+            <div class="matrix-cell zone-crit"></div>
+            <!-- Row 3 -->
+            <div class="matrix-cell zone-low"></div>
+            <div class="matrix-cell zone-med"></div>
+            <div class="matrix-cell zone-med"></div>
+            <div class="matrix-cell zone-high"></div>
+            <div class="matrix-cell zone-high"></div>
+            <!-- Row 2 -->
+            <div class="matrix-cell zone-low"></div>
+            <div class="matrix-cell zone-low"></div>
+            <div class="matrix-cell zone-med"></div>
+            <div class="matrix-cell zone-med"></div>
+            <div class="matrix-cell zone-high"></div>
+            <!-- Row 1 (Lowest Bottom) -->
+            <div class="matrix-cell zone-low"></div>
+            <div class="matrix-cell zone-low"></div>
+            <div class="matrix-cell zone-low"></div>
+            <div class="matrix-cell zone-med"></div>
+            <div class="matrix-cell zone-med"></div>
+
+            {% for risk in risks | default([]) %}
+            <div class="risk-node" style="left: {{ (risk.prob - 1) * 25 + 12.5 }}%; bottom: {{ (risk.impact - 1) * 25 + 12.5 }}%; 
+                        color: {% if risk.severity == 'critical' %}#f87171{% elif risk.severity == 'high' %}#fb923c{% elif risk.severity == 'medium' %}#fbbf24{% else %}#4ade80{% endif %};
+                        background-color: currentColor;" title="{{ risk.label }}">
+                <div class="risk-label">{{ risk.label }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="x-axis-label">Probability (1-5)</div>
+    </div>
+
+    <div style="margin-top: 15px; display: flex; gap: 10px; font-size: 0.65rem; flex-wrap: wrap;">
+        <span style="display:flex; align-items:center; gap:4px;"><span
+                style="width:8px; height:8px; background:#f87171; border-radius:50%;"></span> Critical</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span
+                style="width:8px; height:8px; background:#fb923c; border-radius:50%;"></span> High</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span
+                style="width:8px; height:8px; background:#fbbf24; border-radius:50%;"></span> Med</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span
+                style="width:8px; height:8px; background:#4ade80; border-radius:50%;"></span> Low</span>
+    </div>
+</div>

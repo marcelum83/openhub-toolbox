@@ -10,7 +10,10 @@ import urllib.request
 from kivy.clock import Clock
 from kivy.utils import platform
 
-DEFAULT_SERVER_HOST = "10.62.206.29:8080"
+DEFAULT_SERVER_HOST = "10.112.214.29:8080"
+DEFAULT_GITHUB_REPO = "marcelum83/openhub-toolbox"
+DEFAULT_GITHUB_BRANCH = "master"
+DEFAULT_CATALOG_SOURCE = "github"
 SETTINGS_FILE = "settings.json"
 
 class UpdateManager:
@@ -20,6 +23,10 @@ class UpdateManager:
         self.settings_path = os.path.join(app_root, SETTINGS_FILE)
         settings = self.load_settings()
         self.server_host = settings.get("server_host", DEFAULT_SERVER_HOST)
+        self.github_repo = settings.get("github_repo", DEFAULT_GITHUB_REPO)
+        self.github_branch = settings.get("github_branch", DEFAULT_GITHUB_BRANCH)
+        self.github_token = settings.get("github_token", "")
+        self.catalog_source = settings.get("catalog_source", DEFAULT_CATALOG_SOURCE)
         self.latest_update_info = None
         self.is_downloading = False
         self.local_build_ts = 0
@@ -40,13 +47,41 @@ class UpdateManager:
         data = self.load_settings()
         return data.get("gemini_api_key", os.getenv("GEMINI_API_KEY", ""))
 
-    def save_settings(self, server_host=None, gemini_api_key=None):
+    def get_github_repo(self):
+        data = self.load_settings()
+        return data.get("github_repo", self.github_repo or DEFAULT_GITHUB_REPO)
+
+    def get_github_branch(self):
+        data = self.load_settings()
+        return data.get("github_branch", self.github_branch or DEFAULT_GITHUB_BRANCH)
+
+    def get_github_token(self):
+        data = self.load_settings()
+        return data.get("github_token", self.github_token or "")
+
+    def get_catalog_source(self):
+        data = self.load_settings()
+        return data.get("catalog_source", self.catalog_source or DEFAULT_CATALOG_SOURCE)
+
+    def save_settings(self, server_host=None, gemini_api_key=None, github_repo=None, github_branch=None, github_token=None, catalog_source=None):
         data = self.load_settings()
         if server_host is not None:
             self.server_host = server_host.strip() or DEFAULT_SERVER_HOST
             data["server_host"] = self.server_host
         if gemini_api_key is not None:
             data["gemini_api_key"] = gemini_api_key.strip()
+        if github_repo is not None:
+            self.github_repo = github_repo.strip() or DEFAULT_GITHUB_REPO
+            data["github_repo"] = self.github_repo
+        if github_branch is not None:
+            self.github_branch = github_branch.strip() or DEFAULT_GITHUB_BRANCH
+            data["github_branch"] = self.github_branch
+        if github_token is not None:
+            self.github_token = github_token.strip()
+            data["github_token"] = self.github_token
+        if catalog_source is not None:
+            self.catalog_source = catalog_source.strip() or DEFAULT_CATALOG_SOURCE
+            data["catalog_source"] = self.catalog_source
         try:
             with open(self.settings_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)

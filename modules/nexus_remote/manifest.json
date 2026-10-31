@@ -1,10 +1,10 @@
 {
   "id": "nexus_remote",
   "name": "Nexus Remote & Telemetry Bridge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "mike",
   "category": "Field",
-  "description": "Wireless PC trackpad, media/presentation controller, remote typing & real-time sensor telemetry coprocessor.",
+  "description": "Wireless PC trackpad, media/presentation controller, remote typing, 3D sensor telemetry & ACE-OS Cognitive Agent bridge.",
   "entrypoint": "main.py",
   "permissions": [
     "network:internet",

@@ -1,0 +1,73 @@
+<div
+    style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(16px); color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(139, 92, 246, 0.3); margin-bottom: 25px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-width: 100%; position: relative; overflow: hidden;">
+    <!-- Background Decor -->
+    <div
+        style="position: absolute; top: -100px; right: -100px; width: 250px; height: 250px; background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%); z-index: 0;">
+    </div>
+
+    <div style="position: relative; z-index: 1;">
+        <div
+            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid rgba(139, 92, 246, 0.2); padding-bottom: 15px;">
+            <h2
+                style="margin: 0; font-size: 1.5rem; font-weight: 700; background: linear-gradient(90deg, #a78bfa, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.5px;">
+                {{ title | default('Evolution Journey') }}
+            </h2>
+            <div
+                style="font-size: 0.75rem; color: #94a3b8; background: rgba(139, 92, 246, 0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(139, 92, 246, 0.2); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+                Project Timeline
+            </div>
+        </div>
+
+        <div
+            style="position: relative; padding-left: 30px; margin-left: 10px; border-left: 2px dashed rgba(139, 92, 246, 0.3);">
+            {% for phase in phases %}
+            <div style="position: relative; margin-bottom: 35px; transition: all 0.3s ease;">
+                <!-- Timeline Dot -->
+                <div
+                    style="position: absolute; left: -41px; top: 0; width: 20px; height: 20px; border-radius: 50%; background: {{ '#8b5cf6' if phase.current else '#1e293b' }}; border: 3px solid {{ '#8b5cf6' if phase.current else '#475569' }}; box-shadow: {{ '0 0 15px rgba(139, 92, 246, 0.5)' if phase.current else 'none' }}; z-index: 2;">
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span
+                            style="font-size: 0.8rem; font-weight: 700; color: #8b5cf6; text-transform: uppercase; letter-spacing: 0.5px;">{{
+                            phase.time }}</span>
+                        {% if phase.current %}
+                        <span
+                            style="padding: 2px 8px; border-radius: 4px; background: rgba(139, 92, 246, 0.2); color: #d8b4fe; font-size: 0.65rem; font-weight: 800; text-transform: uppercase;">Current
+                            State</span>
+                        {% endif %}
+                    </div>
+
+                    <h3 style="margin: 0; font-size: 1.15rem; color: #f8fafc; font-weight: 600;">{{ phase.label }}</h3>
+
+                    <p style="margin: 0; color: #94a3b8; font-size: 0.95rem; line-height: 1.5;">{{ phase.description }}
+                    </p>
+
+                    {% if phase.highlights %}
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; mt-8">
+                        {% for highlight in phase.highlights %}
+                        <span
+                            style="font-size: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 3px 10px; border-radius: 6px; color: #cbd5e1;">
+                            {{ highlight }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if footer %}
+        <div
+            style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.05); display: flex; align-items: center; justify-content: space-between; color: #64748b; font-size: 0.85rem;">
+            <span>{{ footer }}</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e;"></span>
+                <span>Active Evolution</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>

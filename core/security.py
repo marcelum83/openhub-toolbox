@@ -46,3 +46,43 @@ class HostAPI:
     def notify(self, title, message):
         """Trigger a toast or notification if supported."""
         print(f"[NOTIFICATION] {title}: {message}")
+
+    def get_server_host(self):
+        """Retrieve configured PC server address from host settings."""
+        try:
+            import json
+            if self._storage_root:
+                s_path = os.path.join(self._storage_root, "settings.json")
+                if os.path.exists(s_path):
+                    with open(s_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        return data.get("server_host", "10.112.214.29:8080")
+        except Exception:
+            pass
+        return "10.112.214.29:8080"
+
+    def save_server_host(self, host):
+        """Update and persist server address across host and modules."""
+        try:
+            import json
+            if self._storage_root:
+                s_path = os.path.join(self._storage_root, "settings.json")
+                data = {}
+                if os.path.exists(s_path):
+                    with open(s_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                data["server_host"] = host
+                with open(s_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"[HostAPI] Error saving server host: {e}")
+
+def analyze_code_risk(code):
+    """Static risk evaluation using AST analysis for dynamic modules."""
+    try:
+        from core.risk_analyzer import RiskAnalyzer
+        ra = RiskAnalyzer()
+        return ra.analyze(code)
+    except Exception as e:
+        return {"status": "Error", "reason": str(e), "risk_points": 0, "findings": []}
+

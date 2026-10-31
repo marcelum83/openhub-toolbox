@@ -3,6 +3,7 @@ OpenHub Central Sync & Cloud Registry Server
 Accepts mobile tool publications, syncs modules to disk, auto-commits to GitHub, and serves the module catalog.
 """
 import os
+import sys
 import json
 import subprocess
 import threading
@@ -10,6 +11,8 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 import urllib.parse
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
 MODULES_DIR = os.path.join(REPO_DIR, "modules")
 BIN_DIR = os.path.join(REPO_DIR, "bin")
 
@@ -84,6 +87,25 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(LATEST_TELEMETRY).encode('utf-8'))
             return
 
+        # 4. API: Get SimpleAgent Active Layer
+        if parsed.path == "/api/simple_agent/layer":
+            simple_agent_dir = "/home/mike/Documents/Nexus_Core/ACE/simple_agent"
+            if simple_agent_dir not in sys.path:
+                sys.path.insert(0, simple_agent_dir)
+            active_layer = "L6_Prosecution"
+            try:
+                import simple_agent
+                mem = simple_agent.load_memory()
+                active_layer = mem.get("current_role", "L6_Prosecution")
+            except Exception:
+                pass
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"active_layer": active_layer}).encode('utf-8'))
+            return
+
         # Fallback to standard bin/ static files (APK, version.json, index.html)
         return super().do_GET()
 
@@ -143,7 +165,37 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 self.send_error(500, f"Telemetry error: {e}")
                 return
 
-        # API: SimpleAgent (ACE-OS Cognitive Engine Bridge)
+        # API: Shift SimpleAgent Active Layer
+        if parsed.path == "/api/simple_agent/layer":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                requested_layer = data.get("layer", "").strip().upper()
+                role_map = {
+                    "L1": "L1_Aspirational",
+                    "L2": "L2_Strategy",
+                    "L6": "L6_Prosecution"
+                }
+                new_role = role_map.get(requested_layer, requested_layer)
+                simple_agent_dir = "/home/mike/Documents/Nexus_Core/ACE/simple_agent"
+                if simple_agent_dir not in sys.path:
+                    sys.path.insert(0, simple_agent_dir)
+                import simple_agent
+                mem = simple_agent.load_memory()
+                mem["current_role"] = new_role
+                simple_agent.save_memory(mem)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok", "active_layer": new_role}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_error(500, f"Failed to shift layer: {e}")
+                return
+
+        # API: SimpleAgent (ACE-OS Full Cognitive Engine Bridge)
         if parsed.path == "/api/simple_agent/chat":
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8')
@@ -151,84 +203,47 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 data = json.loads(body)
                 prompt = data.get("prompt", "")
                 sensor_ctx = data.get("sensor_context", "")
-                model = data.get("model", "qwen2.5-coder:7b")
+                model = data.get("model", "gemma4:e4b")
+                conv_id = data.get("conversation_id")
 
-                # Invoke SimpleAgent
-                import sys
+                # If sensor_ctx wasn't explicitly provided, attach LATEST_TELEMETRY if recent
+                if not sensor_ctx and LATEST_TELEMETRY.get("timestamp", 0) > 0:
+                    sensor_ctx = f"Compass={LATEST_TELEMETRY.get('heading', 0):.1f}°, Pitch={LATEST_TELEMETRY.get('pitch', 0):.1f}°, Roll={LATEST_TELEMETRY.get('roll', 0):.1f}°, Lux={LATEST_TELEMETRY.get('lux', 0):.0f} lx, Mic={LATEST_TELEMETRY.get('db', 0):.0f} dB"
+
+                # Invoke SimpleAgent with full ACE OS cognitive execution
                 simple_agent_dir = "/home/mike/Documents/Nexus_Core/ACE/simple_agent"
                 if simple_agent_dir not in sys.path:
                     sys.path.insert(0, simple_agent_dir)
 
-                try:
-                    import simple_agent
-                    simple_agent.init_db()
-                    simple_agent.load_plugins()
-                    sys_prompt = simple_agent.generate_system_prompt()
-                    if sensor_ctx:
-                        sys_prompt += f"\n\n### LIVE MOBILE SENSOR TELEMETRY ###\n{sensor_ctx}\n"
+                import simple_agent
+                turn_result = simple_agent.execute_agent_turn(
+                    prompt=prompt,
+                    conv_id=conv_id,
+                    sensor_context=sensor_ctx,
+                    model_name=model
+                )
 
-                    # Ensure OpenHub tool building rules are present
-                    sys_prompt += "\n\nWhen asked to build or write an OpenHub tool or application, output complete runnable Kivy Python code in ```python ... ``` with class OpenHubModule(BoxLayout)."
+                reply = turn_result.get("content", "")
+                tools_run = turn_result.get("tools_executed", [])
+                active_role = turn_result.get("role", "L6_Prosecution")
+                out_conv_id = turn_result.get("conversation_id", conv_id)
 
-                    from openai import OpenAI
-                    history = data.get("history", [])
-                    conv_id = data.get("conversation_id")
-                    if not conv_id:
-                        conv_id = simple_agent.create_conversation()
-
-                    messages = [{"role": "system", "content": sys_prompt}]
-                    
-                    if history:
-                        for h in history:
-                            r = h.get("role")
-                            c = h.get("content")
-                            if r in ["user", "assistant"] and c:
-                                messages.append({"role": r, "content": c})
-                        # If the current prompt is not already the last item in history, append it
-                        if not (history and history[-1].get("role") == "user" and history[-1].get("content") == prompt):
-                            messages.append({"role": "user", "content": prompt})
-                    else:
-                        messages.append({"role": "user", "content": prompt})
-
-                    # Auto Web Search Hook for live queries (e.g. "search the web for raspberry pi in hereford")
-                    if any(k in prompt.lower() for k in ["search", "web", "google", "find", "buy", "near", "hereford", "price", "weather", "latest", "gigs", "events", "music"]):
-                        try:
-                            from tools import web_search
-                            s_res = web_search.execute(query=prompt)
-                            messages.append({"role": "system", "content": f"### REAL-TIME WEB SEARCH RESULTS ###\n{s_res}"})
-                        except Exception as ws_e:
-                            print(f"[SimpleAgent] Web search hook notice: {ws_e}")
-
-                    client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-
-                    # Persist user prompt in SimpleAgent database
-                    try:
-                        simple_agent.save_message(conv_id, "user", prompt)
-                    except Exception as sm_e:
-                        print(f"[SimpleAgent] Notice saving user msg: {sm_e}")
-
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        temperature=0.4
-                    )
-                    reply = resp.choices[0].message.content
-
-                    # Persist assistant reply in SimpleAgent database
-                    try:
-                        simple_agent.save_message(conv_id, "assistant", reply)
-                    except Exception as sm_e:
-                        print(f"[SimpleAgent] Notice saving assistant reply: {sm_e}")
-                    
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"response": reply, "provider": "simple_agent_ace", "model": model, "conversation_id": conv_id}).encode('utf-8'))
-                    return
-                except Exception as sa_err:
-                    self.send_error(500, f"SimpleAgent execution error: {sa_err}")
-                    return
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "response": reply,
+                    "tools_executed": tools_run,
+                    "active_layer": active_role,
+                    "provider": "simple_agent_ace",
+                    "model": model,
+                    "conversation_id": out_conv_id
+                }).encode('utf-8'))
+                return
+            except Exception as sa_err:
+                self.send_error(500, f"SimpleAgent execution error: {sa_err}")
+                return
             except Exception as e:
                 self.send_error(400, f"Invalid request: {e}")
                 return
@@ -301,21 +316,68 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
 
     def _git_commit_and_push(self, name, mod_id):
         try:
-            cmd = f'cd "{REPO_DIR}" && git add "modules/{mod_id}" && git commit -m "Publish module: {name} via OpenHub Mobile" && git push origin master'
+            try:
+                import build_catalog
+                build_catalog.generate_catalog()
+            except Exception:
+                pass
+            cmd = f'cd "{REPO_DIR}" && git add "modules/{mod_id}" catalog.json && git commit -m "Publish module: {name} via OpenHub Mobile" && git push origin master'
             subprocess.run(cmd, shell=True, check=False)
-            print(f"[SyncServer] Published '{name}' and pushed to GitHub repository!")
+            print(f"[SyncServer] Published '{name}' and updated catalog.json on GitHub repository!")
         except Exception as e:
             print(f"[SyncServer] Git commit error: {e}")
 
 
-def run_server(port=8080, bind="0.0.0.0"):
+def get_lan_ip():
+    """Detect current active LAN or Wi-Fi hotspot IP."""
+    try:
+        ip = os.popen("ip route get 1.1.1.1 2>/dev/null | awk '{print $7}'").read().strip()
+        if ip:
+            return ip
+    except Exception:
+        pass
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+def run_server(port=8080, bind="0.0.0.0", host_ip=None):
+    if not host_ip or host_ip == "0.0.0.0":
+        host_ip = get_lan_ip()
+
+    # Start LAN Discovery Beacon for OpenHub Mobile
+    try:
+        from core.discovery import LANDiscoveryBeacon
+        beacon = LANDiscoveryBeacon(host_ip=host_ip, server_port=port)
+        beacon.start()
+        print(f"📡 LAN Auto-Discovery Beacon: ACTIVE (Broadcasting {host_ip}:{port} on UDP 8089)")
+    except Exception as e:
+        print(f"⚠️ Could not start discovery beacon: {e}")
+
     server_address = (bind, port)
     httpd = HTTPServer(server_address, OpenHubSyncHandler)
-    print(f"==========================================")
+    print(f"==================================================")
     print(f"🚀 OpenHub Cloud Sync & Download Server Live on port {port}")
-    print(f"   Catalog: http://{bind}:{port}/api/modules/catalog")
-    print(f"==========================================")
-    httpd.serve_forever()
+    print(f"   LAN IP:  http://{host_ip}:{port}")
+    print(f"   Catalog: http://{host_ip}:{port}/api/modules/catalog")
+    print(f"==================================================")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping OpenHub server...")
+        httpd.server_close()
 
 if __name__ == "__main__":
-    run_server()
+    import argparse
+    parser = argparse.ArgumentParser(description="OpenHub Sync & Download Server")
+    parser.add_argument("--port", type=int, default=8080, help="Port to listen on")
+    parser.add_argument("--bind", type=str, default="0.0.0.0", help="Address to bind to")
+    parser.add_argument("--host", type=str, default=None, help="Advertised host IP")
+    args = parser.parse_args()
+    run_server(port=args.port, bind=args.bind, host_ip=args.host)
+

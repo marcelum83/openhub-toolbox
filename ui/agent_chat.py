@@ -223,6 +223,37 @@ class AgentChatScreen(Screen):
         nav_bar.add_widget(btn_clear)
         root.add_widget(nav_bar)
 
+        # 1b. ACE OS Layer Controller Bar
+        self.layer_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), padding=[dp(8), dp(2), dp(8), dp(2)], spacing=dp(6))
+        self.lbl_layer_title = Label(
+            text="🧠 ACE LAYER:",
+            font_size="11sp",
+            bold=True,
+            color=(0.7, 0.7, 0.8, 1),
+            size_hint_x=None,
+            width=dp(95),
+            halign='left',
+            valign='middle'
+        )
+        self.lbl_layer_title.bind(size=self.lbl_layer_title.setter('text_size'))
+        self.layer_bar.add_widget(self.lbl_layer_title)
+
+        self.layer_btns = {}
+        for lc, lbl, col in [("L1", "L1 VISION", (0.54, 0.36, 0.96, 0.9)), ("L2", "L2 STRATEGY", (0.95, 0.65, 0.15, 0.9)), ("L6", "L6 EXECUTE", (0.15, 0.68, 0.38, 0.9))]:
+            b = Button(
+                text=lbl,
+                background_normal="",
+                background_color=(0.18, 0.20, 0.30, 0.9),
+                color=(0.85, 0.85, 0.95, 1),
+                bold=True,
+                font_size="10sp",
+                always_release=True
+            )
+            b.bind(on_release=lambda inst, code=lc: self.on_switch_layer(code))
+            self.layer_btns[lc] = (b, col)
+            self.layer_bar.add_widget(b)
+        root.add_widget(self.layer_bar)
+
         # 2. Chat Scroll Area
         self.scroll = ScrollView(
             do_scroll_x=False,
@@ -251,10 +282,12 @@ class AgentChatScreen(Screen):
         # 4. Quick Suggestions Carousel
         chips_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(38), padding=[dp(8), 0, dp(8), 0], spacing=dp(6))
         chips = [
-            ("⚡ Reaction Game", "Build a quick reaction speed test game"),
-            ("☀️ Check Lux", "What is my current ambient light in lux?"),
-            ("🧭 Compass Info", "Tell me my current compass heading and orientation"),
-            ("⏱️ Interval Timer", "Create a HIIT interval workout timer tool")
+            ("📡 Sensors", "Query physical sensors on my Pixel 7a and summarize my current orientation and environment."),
+            ("📦 Modules", "List all modules currently installed in OpenHub."),
+            ("⚡ Reaction", "Build a quick reaction speed test game"),
+            ("☀️ Lux", "What is my current ambient light in lux?"),
+            ("🧭 Compass", "Tell me my current compass heading and orientation"),
+            ("⏱️ Timer", "Create a HIIT interval workout timer tool")
         ]
         for chip_label, prompt_text in chips:
             b = Button(
@@ -263,7 +296,7 @@ class AgentChatScreen(Screen):
                 background_color=(0.13, 0.13, 0.19, 1.0),
                 color=(0.02, 0.71, 0.83, 1.0),
                 bold=True,
-                font_size="12sp",
+                font_size="11sp",
                 always_release=True
             )
             b.bind(on_release=lambda inst, p=prompt_text: self.send_prompt(p))
@@ -319,6 +352,62 @@ class AgentChatScreen(Screen):
         root.add_widget(input_bar)
 
         self.add_widget(root)
+        Clock.schedule_once(lambda dt: self.init_provider_ui(), 0.1)
+
+    def init_provider_ui(self):
+        prov = self.agent.current_provider
+        if prov == "simple_agent":
+            self.btn_provider.text = "🤖 SIMPLE_AGENT"
+            self.btn_provider.background_color = (0.95, 0.55, 0.15, 0.9)
+            self.update_layer_bar_visibility(True)
+            self.fetch_active_layer()
+        elif prov == "firebase":
+            self.btn_provider.text = "📡 CLOUD TELEPATHY"
+            self.btn_provider.background_color = (0.85, 0.25, 0.75, 0.9)
+            self.update_layer_bar_visibility(False)
+        elif prov == "gemini":
+            self.btn_provider.text = "⚡ GEMINI CLOUD"
+            self.btn_provider.background_color = (0.02, 0.71, 0.83, 0.9)
+            self.update_layer_bar_visibility(False)
+        else:
+            self.btn_provider.text = "🖥️ OLLAMA (LOCAL)"
+            self.btn_provider.background_color = (0.54, 0.36, 0.96, 0.9)
+            self.update_layer_bar_visibility(False)
+
+    def on_switch_layer(self, layer_code):
+        import threading
+        self.lbl_status.text = f"🔄 Shifting ACE Cognitive Layer to {layer_code}..."
+        def _shift():
+            res = self.agent.set_active_layer(layer_code)
+            Clock.schedule_once(lambda dt: self.update_layer_buttons(res), 0)
+        threading.Thread(target=_shift, daemon=True).start()
+
+    def fetch_active_layer(self):
+        import threading
+        def _get():
+            res = self.agent.get_active_layer()
+            Clock.schedule_once(lambda dt: self.update_layer_buttons(res), 0)
+        threading.Thread(target=_get, daemon=True).start()
+
+    def update_layer_buttons(self, active_code="L6"):
+        for lc, (btn, active_color) in self.layer_btns.items():
+            if lc in active_code:
+                btn.background_color = active_color
+                btn.color = (1, 1, 1, 1)
+            else:
+                btn.background_color = (0.15, 0.16, 0.24, 0.9)
+                btn.color = (0.6, 0.6, 0.7, 1)
+        self.lbl_status.text = f"Ready • Active ACE Layer: {active_code}"
+
+    def update_layer_bar_visibility(self, visible):
+        if visible:
+            self.layer_bar.height = dp(32)
+            self.layer_bar.opacity = 1.0
+            self.layer_bar.disabled = False
+        else:
+            self.layer_bar.height = 0
+            self.layer_bar.opacity = 0.0
+            self.layer_bar.disabled = True
 
     def on_voice_pressed(self, *args):
         try:
@@ -365,21 +454,26 @@ class AgentChatScreen(Screen):
             self.btn_provider.text = "🤖 SIMPLE_AGENT"
             self.btn_provider.background_color = (0.95, 0.55, 0.15, 0.9)
             self.lbl_status.text = "Ready • Connected to ACE-OS SimpleAgent (LAN)"
+            self.update_layer_bar_visibility(True)
+            self.fetch_active_layer()
         elif self.agent.current_provider == "simple_agent":
             self.agent.save_config(provider="firebase")
             self.btn_provider.text = "📡 CLOUD TELEPATHY"
             self.btn_provider.background_color = (0.85, 0.25, 0.75, 0.9)
-            self.lbl_status.text = "Ready • Firebase Cloud Relay ➔ Nexus Studio"
+            self.lbl_status.text = "Ready • Firebase Cloud Relay ➔ SimpleAgent"
+            self.update_layer_bar_visibility(False)
         elif self.agent.current_provider == "firebase":
             self.agent.save_config(provider="gemini")
             self.btn_provider.text = "⚡ GEMINI CLOUD"
             self.btn_provider.background_color = (0.02, 0.71, 0.83, 0.9)
             self.lbl_status.text = "Ready • Powered by Gemini 1.5 Flash Cloud"
+            self.update_layer_bar_visibility(False)
         else:
             self.agent.save_config(provider="ollama")
             self.btn_provider.text = "🖥️ OLLAMA (LOCAL)"
             self.btn_provider.background_color = (0.54, 0.36, 0.96, 0.9)
             self.lbl_status.text = "Ready • Powered by Workstation Ollama (qwen2.5-coder)"
+            self.update_layer_bar_visibility(False)
 
     def clear_chat(self, *args):
         self.agent.clear_history()

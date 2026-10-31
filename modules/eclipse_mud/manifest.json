@@ -1,0 +1,14 @@
+{
+  "id": "eclipse_mud",
+  "name": "Eclipse Phase MUD",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Experiments",
+  "description": "Transhuman Roguelike MUD set in the Eclipse Phase universe with LLM Game Master, Ego/Morph resleeving, tactical Mesh hacking, and reactive NPCs.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "feedback:haptics",
+    "network:client"
+  ],
+  "trust_level": "trusted"
+}

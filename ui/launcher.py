@@ -176,61 +176,134 @@ class UpdateModal(ModalView):
 
 class SettingsModal(ModalView):
     def __init__(self, updater, on_check_updates_cb, app_manager=None, **kwargs):
-        super().__init__(size_hint=(0.94, 0.75), auto_dismiss=True, **kwargs)
+        super().__init__(size_hint=(0.94, 0.85), auto_dismiss=True, **kwargs)
         self.updater = updater
         self.on_check_updates_cb = on_check_updates_cb
         self.app_manager = app_manager
 
-        root = BoxLayout(orientation='vertical', padding=dp(18), spacing=dp(10))
-        with root.canvas.before:
+        outer = BoxLayout(orientation='vertical', padding=dp(16), spacing=dp(10))
+        with outer.canvas.before:
             Color(0.09, 0.09, 0.13, 0.98)
-            self.bg_rect = RoundedRectangle(size=root.size, pos=root.pos, radius=[dp(18)])
+            self.bg_rect = RoundedRectangle(size=outer.size, pos=outer.pos, radius=[dp(18)])
             Color(0.54, 0.36, 0.96, 0.8)
-            self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
-        root.bind(size=self._update_bg, pos=self._update_bg)
+            self.border_rect = Line(rounded_rectangle=(outer.x, outer.y, outer.width, outer.height, dp(18)), width=1.5)
+        outer.bind(size=self._update_bg, pos=self._update_bg)
 
-        lbl_title = Label(text="⚙️ SETTINGS & FORGE AI", font_size="18sp", bold=True, color=(0.54, 0.36, 0.96, 1.0), size_hint_y=None, height=dp(30))
-        root.add_widget(lbl_title)
+        lbl_title = Label(text="⚙️ SETTINGS & CONFIGURATION", font_size="17sp", bold=True, color=(0.54, 0.36, 0.96, 1.0), size_hint_y=None, height=dp(30))
+        outer.add_widget(lbl_title)
 
+        scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
+        form = BoxLayout(orientation='vertical', spacing=dp(10), size_hint_y=None)
+        form.bind(minimum_height=form.setter('height'))
+
+        # 1. Catalog Source Toggle
+        lbl_source = Label(text="Sub-App Catalog Source:", font_size="13sp", bold=True, color=(0.02, 0.71, 0.83, 1.0), size_hint_y=None, height=dp(20), halign='left')
+        lbl_source.bind(size=lbl_source.setter('text_size'))
+        form.add_widget(lbl_source)
+
+        self.current_source = self.updater.get_catalog_source()
+        self.btn_source = Button(
+            text=f"🌐 SOURCE: {'GitHub (Remote)' if self.current_source == 'github' else 'Local Server (LAN)'}",
+            background_normal="",
+            background_color=(0.14, 0.28, 0.44, 1.0) if self.current_source == 'github' else (0.35, 0.20, 0.50, 1.0),
+            color=(0.9, 0.95, 1.0, 1.0),
+            bold=True,
+            font_size="13sp",
+            size_hint_y=None,
+            height=dp(38),
+            always_release=True
+        )
+        self.btn_source.bind(on_release=self.toggle_source)
+        form.add_widget(self.btn_source)
+
+        # 2. GitHub Settings
+        lbl_gh = Label(text="GitHub Repository (owner/repo):", font_size="13sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(20), halign='left')
+        lbl_gh.bind(size=lbl_gh.setter('text_size'))
+        form.add_widget(lbl_gh)
+
+        self.txt_github_repo = TextInput(text=self.updater.get_github_repo(), multiline=False, font_size="14sp", size_hint_y=None, height=dp(40))
+        form.add_widget(self.txt_github_repo)
+
+        lbl_branch = Label(text="GitHub Branch:", font_size="13sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(20), halign='left')
+        lbl_branch.bind(size=lbl_branch.setter('text_size'))
+        form.add_widget(lbl_branch)
+
+        self.txt_github_branch = TextInput(text=self.updater.get_github_branch(), multiline=False, font_size="14sp", size_hint_y=None, height=dp(40))
+        form.add_widget(self.txt_github_branch)
+
+        lbl_token = Label(text="GitHub Token (PAT) (Optional - private apps & 5k req/hr):", font_size="13sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(20), halign='left')
+        lbl_token.bind(size=lbl_token.setter('text_size'))
+        form.add_widget(lbl_token)
+
+        self.txt_github_token = TextInput(
+            text=self.updater.get_github_token(),
+            password=True,
+            multiline=False,
+            font_size="14sp",
+            hint_text="ghp_xxx or access token...",
+            size_hint_y=None,
+            height=dp(40)
+        )
+        form.add_widget(self.txt_github_token)
+
+        # 3. LAN Server Settings
         lbl_host = Label(text="Local Server Address (IP:PORT):", font_size="13sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(20), halign='left')
         lbl_host.bind(size=lbl_host.setter('text_size'))
-        root.add_widget(lbl_host)
+        form.add_widget(lbl_host)
 
-        self.txt_host = TextInput(text=self.updater.server_host, multiline=False, font_size="15sp", size_hint_y=None, height=dp(42))
-        root.add_widget(self.txt_host)
+        self.txt_host = TextInput(text=self.updater.server_host, multiline=False, font_size="14sp", size_hint_y=None, height=dp(40))
+        form.add_widget(self.txt_host)
 
+        btn_discover = Button(
+            text="📡 AUTO-DISCOVER DESKTOP (WI-FI / HOTSPOT)",
+            background_normal="",
+            background_color=(0.14, 0.20, 0.32, 1.0),
+            color=(0.02, 0.71, 0.83, 1.0),
+            bold=True,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(36),
+            always_release=True
+        )
+        btn_discover.bind(on_release=self.run_autodiscover)
+        form.add_widget(btn_discover)
+
+        # 4. Gemini AI Key
         lbl_api = Label(text="Gemini API Key (for Live AI Generation):", font_size="13sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(20), halign='left')
         lbl_api.bind(size=lbl_api.setter('text_size'))
-        root.add_widget(lbl_api)
+        form.add_widget(lbl_api)
 
         current_key = self.updater.get_api_key()
         self.txt_api_key = TextInput(
             text=current_key,
             password=True,
             multiline=False,
-            font_size="15sp",
+            font_size="14sp",
             hint_text="Paste AI Studio API Key here...",
             size_hint_y=None,
-            height=dp(42)
+            height=dp(40)
         )
-        root.add_widget(self.txt_api_key)
+        form.add_widget(self.txt_api_key)
 
-        self.lbl_feedback = Label(text="Configure your local WiFi server or Gemini AI key.", font_size="12sp", color=(0.6, 0.6, 0.7, 1.0), size_hint_y=None, height=dp(22))
-        root.add_widget(self.lbl_feedback)
+        scroll.add_widget(form)
+        outer.add_widget(scroll)
 
+        self.lbl_feedback = Label(text="Manage GitHub repo, token, LAN server, and AI keys.", font_size="12sp", color=(0.6, 0.6, 0.7, 1.0), size_hint_y=None, height=dp(20))
+        outer.add_widget(self.lbl_feedback)
+
+        # Bottom Button Row
+        btn_row = BoxLayout(orientation='horizontal', spacing=dp(10), size_hint_y=None, height=dp(42))
         btn_check = Button(
-            text="🔍 CHECK FOR APK UPDATES",
+            text="🔍 CHECK APK UPDATE",
             background_normal="",
             background_color=(0.02, 0.71, 0.83, 1.0),
             color=(0.05, 0.05, 0.08, 1.0),
             bold=True,
-            font_size="14sp",
-            size_hint_y=None,
-            height=dp(44),
+            font_size="13sp",
             always_release=True
         )
         btn_check.bind(on_release=self.check_now)
-        root.add_widget(btn_check)
+        btn_row.add_widget(btn_check)
 
         btn_close = Button(
             text="💾 SAVE & CLOSE",
@@ -238,25 +311,62 @@ class SettingsModal(ModalView):
             background_color=(0.15, 0.68, 0.38, 1.0),
             color=(1, 1, 1, 1),
             bold=True,
-            font_size="14sp",
-            size_hint_y=None,
-            height=dp(44),
+            font_size="13sp",
             always_release=True
         )
         btn_close.bind(on_release=self.save_and_close)
-        root.add_widget(btn_close)
+        btn_row.add_widget(btn_close)
+        outer.add_widget(btn_row)
 
-        self.add_widget(root)
+        self.add_widget(outer)
 
     def _update_bg(self, inst, val):
         self.bg_rect.pos = inst.pos
         self.bg_rect.size = inst.size
         self.border_rect.rounded_rectangle = (inst.x, inst.y, inst.width, inst.height, dp(18))
 
+    def toggle_source(self, *args):
+        if self.current_source == "github":
+            self.current_source = "server"
+            self.btn_source.text = "📡 SOURCE: Local Server (LAN)"
+            self.btn_source.background_color = (0.35, 0.20, 0.50, 1.0)
+        else:
+            self.current_source = "github"
+            self.btn_source.text = "🌐 SOURCE: GitHub (Remote)"
+            self.btn_source.background_color = (0.14, 0.28, 0.44, 1.0)
+
+    def run_autodiscover(self, *args):
+        self.lbl_feedback.text = "🔍 Searching Wi-Fi/Hotspot for Desktop Server..."
+        self.lbl_feedback.color = (0.02, 0.71, 0.83, 1.0)
+        try:
+            from core.discovery import discover_server
+            def _on_found(discovered):
+                if discovered:
+                    self.txt_host.text = discovered
+                    self.lbl_feedback.text = f"✅ Auto-discovered Desktop at {discovered}!"
+                    self.lbl_feedback.color = (0.15, 0.85, 0.4, 1.0)
+                else:
+                    self.lbl_feedback.text = "⚠️ Desktop not found. Ensure server.sh is running on PC."
+                    self.lbl_feedback.color = (0.95, 0.75, 0.1, 1.0)
+            discover_server(timeout=1.5, callback=_on_found)
+        except Exception as e:
+            self.lbl_feedback.text = f"❌ Discovery error: {e}"
+            self.lbl_feedback.color = (0.9, 0.3, 0.3, 1.0)
+
     def check_now(self, *args):
         new_host = self.txt_host.text.strip()
         new_key = self.txt_api_key.text.strip()
-        self.updater.save_settings(server_host=new_host, gemini_api_key=new_key)
+        new_repo = self.txt_github_repo.text.strip()
+        new_branch = self.txt_github_branch.text.strip()
+        new_token = self.txt_github_token.text.strip()
+        self.updater.save_settings(
+            server_host=new_host,
+            gemini_api_key=new_key,
+            github_repo=new_repo,
+            github_branch=new_branch,
+            github_token=new_token,
+            catalog_source=self.current_source
+        )
         if self.app_manager and hasattr(self.app_manager, 'forge'):
             self.app_manager.forge.gemini_api_key = new_key
         self.lbl_feedback.text = "Checking server..."
@@ -276,7 +386,17 @@ class SettingsModal(ModalView):
     def save_and_close(self, *args):
         new_host = self.txt_host.text.strip()
         new_key = self.txt_api_key.text.strip()
-        self.updater.save_settings(server_host=new_host, gemini_api_key=new_key)
+        new_repo = self.txt_github_repo.text.strip()
+        new_branch = self.txt_github_branch.text.strip()
+        new_token = self.txt_github_token.text.strip()
+        self.updater.save_settings(
+            server_host=new_host,
+            gemini_api_key=new_key,
+            github_repo=new_repo,
+            github_branch=new_branch,
+            github_token=new_token,
+            catalog_source=self.current_source
+        )
         if self.app_manager and hasattr(self.app_manager, 'forge'):
             self.app_manager.forge.gemini_api_key = new_key
         self.dismiss()
@@ -284,10 +404,14 @@ class SettingsModal(ModalView):
 
 class CommunityHubModal(ModalView):
     def __init__(self, app_manager, **kwargs):
-        super().__init__(size_hint=(0.94, 0.82), auto_dismiss=True, **kwargs)
+        super().__init__(size_hint=(0.95, 0.88), auto_dismiss=True, **kwargs)
         self.app_manager = app_manager
-        
-        root = BoxLayout(orientation='vertical', padding=dp(16), spacing=dp(10))
+        self.raw_catalog = []
+        self.active_category = "ALL"
+        self.search_query = ""
+        self.category_buttons = {}
+
+        root = BoxLayout(orientation='vertical', padding=dp(14), spacing=dp(8))
         with root.canvas.before:
             Color(0.09, 0.09, 0.13, 0.98)
             self.bg_rect = RoundedRectangle(size=root.size, pos=root.pos, radius=[dp(18)])
@@ -295,45 +419,100 @@ class CommunityHubModal(ModalView):
             self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
         root.bind(size=self._update_bg, pos=self._update_bg)
 
+        # 1. Header Row
         head = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(36), spacing=dp(8))
-        lbl_title = Label(text="🌐 COMMUNITY TOOL REGISTRY", font_size="17sp", bold=True, color=(0.02, 0.71, 0.83, 1.0), halign='left')
+        lbl_title = Label(text="🌐 SUB-APP STORE", font_size="17sp", bold=True, color=(0.02, 0.71, 0.83, 1.0), halign='left')
         lbl_title.bind(size=lbl_title.setter('text_size'))
         head.add_widget(lbl_title)
-        
-        btn_refresh = Button(text="🔄", size_hint_x=None, width=dp(42), background_normal="", background_color=(0.18, 0.18, 0.26, 1.0), always_release=True)
+
+        curr_src = self.app_manager.updater.get_catalog_source()
+        self.btn_src_toggle = Button(
+            text="🌐 GITHUB" if curr_src == "github" else "📡 LAN",
+            size_hint_x=None,
+            width=dp(92),
+            background_normal="",
+            background_color=(0.14, 0.28, 0.44, 1.0) if curr_src == "github" else (0.35, 0.20, 0.50, 1.0),
+            color=(0.9, 0.95, 1.0, 1.0),
+            bold=True,
+            font_size="11sp",
+            always_release=True
+        )
+        self.btn_src_toggle.bind(on_release=self.quick_toggle_source)
+        head.add_widget(self.btn_src_toggle)
+
+        btn_refresh = Button(text="🔄", size_hint_x=None, width=dp(40), background_normal="", background_color=(0.18, 0.18, 0.26, 1.0), always_release=True)
         btn_refresh.bind(on_release=lambda x: self.load_catalog())
         head.add_widget(btn_refresh)
         root.add_widget(head)
 
-        lbl_desc = Label(
-            text="Browse & download modules from the central GitHub repository.",
-            font_size="12sp",
-            color=(0.6, 0.6, 0.7, 1.0),
+        # 2. Source Info & Token Status Bar
+        self.lbl_source_info = Label(
+            text="Fetching repository metadata...",
+            font_size="11sp",
+            color=(0.6, 0.65, 0.75, 1.0),
             size_hint_y=None,
-            height=dp(20),
+            height=dp(18),
             halign='left'
         )
-        lbl_desc.bind(size=lbl_desc.setter('text_size'))
-        root.add_widget(lbl_desc)
+        self.lbl_source_info.bind(size=self.lbl_source_info.setter('text_size'))
+        root.add_widget(self.lbl_source_info)
 
+        # 3. Real-time Search Box
+        self.txt_search = TextInput(
+            hint_text="🔍 Search sub-apps, categories, authors...",
+            multiline=False,
+            font_size="13sp",
+            size_hint_y=None,
+            height=dp(38),
+            background_color=(0.13, 0.13, 0.19, 1.0),
+            foreground_color=(0.95, 0.95, 0.98, 1.0)
+        )
+        self.txt_search.bind(text=self.on_search_changed)
+        root.add_widget(self.txt_search)
+
+        # 4. Category Filter Chips (Horizontal ScrollView)
+        chip_scroll = ScrollView(do_scroll_x=True, do_scroll_y=False, size_hint_y=None, height=dp(32))
+        chips_box = BoxLayout(orientation='horizontal', spacing=dp(6), size_hint_x=None)
+        chips_box.bind(minimum_width=chips_box.setter('width'))
+        categories = ["ALL", "TOOLS", "FIELD", "AGENTS", "EXPERIMENTS", "INSTALLED"]
+        for cat in categories:
+            btn_cat = Button(
+                text=cat,
+                size_hint_x=None,
+                width=dp(70 if cat != "EXPERIMENTS" else 96),
+                background_normal="",
+                background_color=ColorSystem.PRIMARY if cat == "ALL" else (0.16, 0.16, 0.22, 1.0),
+                color=ColorSystem.BG_DARK if cat == "ALL" else (0.8, 0.8, 0.9, 1.0),
+                font_size="11sp",
+                bold=True,
+                always_release=True
+            )
+            btn_cat.bind(on_release=lambda inst, c=cat: self.set_category(c))
+            self.category_buttons[cat] = btn_cat
+            chips_box.add_widget(btn_cat)
+        chip_scroll.add_widget(chips_box)
+        root.add_widget(chip_scroll)
+
+        # 5. Scroll View with Sub-App Cards
         self.scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
         self.cat_grid = GridLayout(cols=1, spacing=dp(10), size_hint_y=None)
         self.cat_grid.bind(minimum_height=self.cat_grid.setter('height'))
         self.scroll.add_widget(self.cat_grid)
         root.add_widget(self.scroll)
 
-        self.lbl_status = Label(text="Loading catalog...", font_size="13sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(24))
+        # 6. Status and Close Footer
+        self.lbl_status = Label(text="Loading sub-apps...", font_size="12sp", color=(0.7, 0.7, 0.8, 1.0), size_hint_y=None, height=dp(22))
         root.add_widget(self.lbl_status)
 
         btn_close = Button(
-            text="CLOSE",
+            text="CLOSE STORE",
             background_normal="",
             background_color=(0.18, 0.18, 0.26, 1.0),
-            color=(0.8, 0.8, 0.9, 1.0),
+            color=(0.85, 0.85, 0.95, 1.0),
             bold=True,
-            font_size="14sp",
+            font_size="13sp",
             size_hint_y=None,
-            height=dp(44),
+            height=dp(40),
             always_release=True
         )
         btn_close.bind(on_release=lambda x: self.dismiss())
@@ -347,70 +526,275 @@ class CommunityHubModal(ModalView):
         self.bg_rect.size = inst.size
         self.border_rect.rounded_rectangle = (inst.x, inst.y, inst.width, inst.height, dp(18))
 
+    def quick_toggle_source(self, *args):
+        curr = self.app_manager.updater.get_catalog_source()
+        new_src = "server" if curr == "github" else "github"
+        self.app_manager.updater.save_settings(catalog_source=new_src)
+        self.btn_src_toggle.text = "🌐 GITHUB" if new_src == "github" else "📡 LAN"
+        self.btn_src_toggle.background_color = (0.14, 0.28, 0.44, 1.0) if new_src == "github" else (0.35, 0.20, 0.50, 1.0)
+        self.load_catalog()
+
+    def set_category(self, cat):
+        self.active_category = cat
+        for c, btn in self.category_buttons.items():
+            if c == cat:
+                btn.background_color = ColorSystem.PRIMARY
+                btn.color = ColorSystem.BG_DARK
+            else:
+                btn.background_color = (0.16, 0.16, 0.22, 1.0)
+                btn.color = (0.8, 0.8, 0.9, 1.0)
+        self.render_cards()
+
+    def on_search_changed(self, inst, val):
+        self.search_query = val.strip().lower()
+        self.render_cards()
+
     def load_catalog(self):
-        self.lbl_status.text = "Fetching catalog from central repo..."
+        curr = self.app_manager.updater.get_catalog_source()
+        if curr == "github":
+            repo = self.app_manager.updater.get_github_repo()
+            branch = self.app_manager.updater.get_github_branch()
+            token = self.app_manager.updater.get_github_token()
+            token_status = "🔑 Token Active (5k req/hr + Private)" if token else "🔓 Public (60 req/hr)"
+            self.lbl_source_info.text = f"🌐 GitHub: {repo} ({branch}) • {token_status}"
+            self.lbl_status.text = f"Fetching sub-apps from GitHub ({repo})..."
+        else:
+            host = self.app_manager.updater.server_host
+            self.lbl_source_info.text = f"📡 Local Workstation LAN: http://{host}"
+            self.lbl_status.text = f"Fetching sub-apps from LAN server ({host})..."
+
         self.cat_grid.clear_widgets()
-        host = self.app_manager.updater.server_host
-        self.app_manager.module_mgr.fetch_community_catalog(host, self.on_catalog_loaded)
+        self.app_manager.module_mgr.fetch_catalog(self.app_manager.updater, self.on_catalog_loaded)
 
     def on_catalog_loaded(self, success, catalog, error):
         if not success:
-            self.lbl_status.text = f"❌ Error: {error or 'Could not connect to repo'}"
+            self.lbl_status.text = f"❌ Error: {error or 'Could not connect to sub-app repository'}"
             return
-        
+        self.raw_catalog = catalog or []
+        self.lbl_status.text = f"Found {len(self.raw_catalog)} sub-apps available."
+        self.render_cards()
+
+    def get_local_info(self, item):
+        """Returns (is_installed, local_version, descriptor)."""
+        mod_id = item.get("id", "")
+        dir_name = item.get("dir_name", mod_id)
+
+        # Check in launcher_screen all_descriptors
+        if hasattr(self.app_manager, 'launcher_screen') and self.app_manager.launcher_screen:
+            desc = self.app_manager.launcher_screen.get_descriptor(mod_id) or self.app_manager.launcher_screen.get_descriptor(dir_name)
+            if desc:
+                return True, getattr(desc, 'version', '1.0.0'), desc
+
+        # Check directly on disk
+        target_dir = os.path.join(self.app_manager.module_mgr.modules_dir, dir_name)
+        if os.path.isdir(target_dir):
+            m_path = os.path.join(target_dir, "manifest.json")
+            if os.path.exists(m_path):
+                try:
+                    with open(m_path, "r", encoding="utf-8") as f:
+                        d = json.load(f)
+                        return True, d.get("version", "1.0.0"), None
+                except Exception:
+                    pass
+            return True, "1.0.0", None
+
+        return False, None, None
+
+    def render_cards(self):
         self.cat_grid.clear_widgets()
-        self.lbl_status.text = f"Found {len(catalog)} tools in central repository"
-        
-        for item in catalog:
+        filtered = []
+
+        for item in self.raw_catalog:
             mod_id = item.get("id", "")
             name = item.get("name", mod_id)
-            desc = item.get("description", "OpenHub tool")
+            desc_text = item.get("description", "")
+            cat = item.get("category", "Tools")
             author = item.get("author", "community")
-            
-            card = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(105), padding=dp(10), spacing=dp(6))
+
+            is_inst, local_ver, desc_obj = self.get_local_info(item)
+
+            # Category filter
+            if self.active_category == "INSTALLED":
+                if not is_inst:
+                    continue
+            elif self.active_category != "ALL" and cat.upper() != self.active_category:
+                continue
+
+            # Search filter
+            if self.search_query:
+                combined = f"{mod_id} {name} {desc_text} {cat} {author}".lower()
+                if self.search_query not in combined:
+                    continue
+
+            filtered.append((item, is_inst, local_ver, desc_obj))
+
+        if not filtered:
+            lbl_empty = Label(
+                text="No sub-apps match your search or filter.",
+                font_size="13sp",
+                color=(0.5, 0.5, 0.6, 1.0),
+                size_hint_y=None,
+                height=dp(60)
+            )
+            self.cat_grid.add_widget(lbl_empty)
+            return
+
+        for item, is_inst, local_ver, desc_obj in filtered:
+            mod_id = item.get("id", "")
+            name = item.get("name", mod_id)
+            desc_text = item.get("description", "OpenHub sub-app")
+            author = item.get("author", "community")
+            cat = item.get("category", "Tools")
+            remote_ver = item.get("version", "1.0.0")
+
+            # Determine install/update state
+            has_update = False
+            if is_inst and local_ver:
+                if str(remote_ver).strip() != str(local_ver).strip():
+                    has_update = True
+
+            card = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(112), padding=dp(10), spacing=dp(5))
             with card.canvas.before:
                 Color(0.12, 0.12, 0.18, 1.0)
                 bg = RoundedRectangle(size=card.size, pos=card.pos, radius=[dp(10)])
-                Color(0.2, 0.2, 0.28, 0.6)
+                bdr_color = (0.02, 0.71, 0.83, 0.6) if is_inst else (0.2, 0.2, 0.28, 0.6)
+                Color(*bdr_color)
                 bdr = Line(rounded_rectangle=(card.x, card.y, card.width, card.height, dp(10)), width=1.0)
             card.bind(size=lambda inst, val, b=bg, d=bdr: setattr(b, 'pos', inst.pos) or setattr(b, 'size', inst.size) or setattr(d, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(10))))
+
+            # Header row
+            h_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(22), spacing=dp(6))
+            h_row.add_widget(Label(text=f"📦 {name}", font_size="14sp", bold=True, color=(0.95, 0.95, 0.97, 1.0), halign='left'))
             
-            h_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(24))
-            h_row.add_widget(Label(text=f"📦 {name}", font_size="15sp", bold=True, color=(0.95, 0.95, 0.97, 1.0), halign='left'))
-            h_row.add_widget(Label(text=f"by {author}", font_size="11sp", color=(0.6, 0.6, 0.7, 1.0), halign='right'))
+            tag_text = f"v{remote_ver} • [{cat}]"
+            h_row.add_widget(Label(text=tag_text, font_size="11sp", color=(0.02, 0.71, 0.83, 1.0), size_hint_x=None, width=dp(110), halign='right'))
             card.add_widget(h_row)
-            
-            card.add_widget(Label(text=desc, font_size="12sp", color=(0.7, 0.7, 0.8, 1.0), halign='left', size_hint_y=None, height=dp(20)))
-            
-            btn_inst = Button(
-                text="⬇️ INSTALL / SYNC TO PHONE",
-                background_normal="",
-                background_color=(0.15, 0.68, 0.38, 1.0),
-                color=(1, 1, 1, 1),
-                bold=True,
-                font_size="13sp",
+
+            # Author and short description
+            lbl_desc = Label(
+                text=f"by {author} — {desc_text}",
+                font_size="11sp",
+                color=(0.65, 0.65, 0.75, 1.0),
                 size_hint_y=None,
-                height=dp(36),
-                always_release=True
+                height=dp(18),
+                halign='left',
+                shorten=True,
+                shorten_from='right'
             )
-            btn_inst.bind(on_release=lambda inst, m_id=mod_id, m_name=name: self.install_tool(m_id, m_name))
-            card.add_widget(btn_inst)
+            lbl_desc.bind(size=lbl_desc.setter('text_size'))
+            card.add_widget(lbl_desc)
+
+            # Action Buttons Row
+            act_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(34), spacing=dp(8))
             
+            if not is_inst:
+                btn_install = Button(
+                    text="⬇️ INSTALL SUB-APP",
+                    background_normal="",
+                    background_color=(0.15, 0.68, 0.38, 1.0),
+                    color=(1, 1, 1, 1),
+                    bold=True,
+                    font_size="12sp",
+                    always_release=True
+                )
+                btn_install.bind(on_release=lambda inst, it=item: self.install_tool(it))
+                act_row.add_widget(btn_install)
+            elif has_update:
+                btn_update = Button(
+                    text=f"🔄 UPDATE (v{local_ver} ➔ v{remote_ver})",
+                    background_normal="",
+                    background_color=(0.85, 0.55, 0.10, 1.0),
+                    color=(1, 1, 1, 1),
+                    bold=True,
+                    font_size="12sp",
+                    always_release=True
+                )
+                btn_update.bind(on_release=lambda inst, it=item: self.install_tool(it))
+                act_row.add_widget(btn_update)
+
+                btn_uninstall = Button(
+                    text="🗑 REMOVE",
+                    size_hint_x=None,
+                    width=dp(85),
+                    background_normal="",
+                    background_color=(0.45, 0.15, 0.15, 1.0),
+                    color=(0.95, 0.8, 0.8, 1.0),
+                    bold=True,
+                    font_size="11sp",
+                    always_release=True
+                )
+                btn_uninstall.bind(on_release=lambda inst, it=item: self.uninstall_tool(it))
+                act_row.add_widget(btn_uninstall)
+            else:
+                btn_launch = Button(
+                    text="▶ LAUNCH",
+                    background_normal="",
+                    background_color=(0.02, 0.71, 0.83, 1.0),
+                    color=(0.05, 0.05, 0.08, 1.0),
+                    bold=True,
+                    font_size="12sp",
+                    always_release=True
+                )
+                btn_launch.bind(on_release=lambda inst, it=item, d=desc_obj: self.launch_tool(it, d))
+                act_row.add_widget(btn_launch)
+
+                btn_uninstall = Button(
+                    text="🗑 REMOVE",
+                    size_hint_x=None,
+                    width=dp(85),
+                    background_normal="",
+                    background_color=(0.40, 0.15, 0.18, 1.0),
+                    color=(0.95, 0.8, 0.8, 1.0),
+                    bold=True,
+                    font_size="11sp",
+                    always_release=True
+                )
+                btn_uninstall.bind(on_release=lambda inst, it=item: self.uninstall_tool(it))
+                act_row.add_widget(btn_uninstall)
+
+            card.add_widget(act_row)
             self.cat_grid.add_widget(card)
 
-    def install_tool(self, mod_id, name):
-        self.lbl_status.text = f"Installing '{name}'..."
-        host = self.app_manager.updater.server_host
-        self.app_manager.module_mgr.install_community_module(mod_id, host, lambda s, mid, err: self.on_installed(s, name, err))
+    def install_tool(self, item):
+        name = item.get("name", item.get("id"))
+        src = self.app_manager.updater.get_catalog_source()
+        src_label = "GitHub" if src == "github" else "LAN Server"
+        self.lbl_status.text = f"⏳ Downloading '{name}' from {src_label}..."
+        self.app_manager.module_mgr.install_module(
+            item,
+            self.app_manager.updater,
+            lambda s, mid, err: self.on_installed(s, name, err)
+        )
 
     def on_installed(self, success, name, error):
         if success:
             self.lbl_status.text = f"✅ Installed '{name}'! Added to Toolbox."
             self.app_manager.refresh_modules()
-            if self.app_manager.hardware:
+            if hasattr(self.app_manager, 'hardware') and self.app_manager.hardware:
                 self.app_manager.hardware.vibrate(40)
+            self.render_cards()
         else:
             self.lbl_status.text = f"❌ Install error: {error}"
+
+    def uninstall_tool(self, item):
+        name = item.get("name", item.get("id"))
+        dir_name = item.get("dir_name") or item.get("id")
+        success = self.app_manager.module_mgr.uninstall_module(dir_name)
+        if success:
+            self.lbl_status.text = f"🗑 Uninstalled '{name}'."
+            self.app_manager.refresh_modules()
+            if hasattr(self.app_manager, 'hardware') and self.app_manager.hardware:
+                self.app_manager.hardware.vibrate(25)
+            self.render_cards()
+        else:
+            self.lbl_status.text = f"❌ Could not remove '{name}'."
+
+    def launch_tool(self, item, desc=None):
+        self.dismiss()
+        if not desc and hasattr(self.app_manager, 'launcher_screen') and self.app_manager.launcher_screen:
+            desc = self.app_manager.launcher_screen.get_descriptor(item.get("id")) or self.app_manager.launcher_screen.get_descriptor(item.get("dir_name"))
+        if desc:
+            self.app_manager.launch_module(desc)
 
 
 class AppContextModal(ModalView):

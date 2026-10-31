@@ -1,0 +1,14 @@
+{
+  "id": "eclipse_survivors",
+  "name": "Eclipse Survivors",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Experiments",
+  "description": "Top-down transhuman action-roguelite set in Eclipse Phase. Explore derelict station decks, auto-fire cybernetic weapons, draft augment upgrades, and survive Exsurgent incursions.",
+  "entrypoint": "main.py",
+  "permissions": [
+    "feedback:haptics",
+    "network:client"
+  ],
+  "trust_level": "trusted"
+}

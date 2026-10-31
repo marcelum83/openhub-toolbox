@@ -46,7 +46,7 @@ EOF
 fi
 
 # Find local WiFi / Hotspot IP
-IP_ADDR=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' || echo "10.62.206.29")
+IP_ADDR=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' || hostname -I | awk '{print $1}')
 PORT=8080
 
 echo ""
