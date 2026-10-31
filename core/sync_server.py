@@ -216,8 +216,11 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 simple_agent_dir = "/home/mike/Documents/Nexus_Core/ACE/simple_agent"
                 if simple_agent_dir not in sys.path:
                     sys.path.insert(0, simple_agent_dir)
-
-                import simple_agent
+                import importlib
+                if "simple_agent" in sys.modules:
+                    simple_agent = importlib.reload(sys.modules["simple_agent"])
+                else:
+                    import simple_agent
                 turn_result = simple_agent.execute_agent_turn(
                     prompt=prompt,
                     conv_id=conv_id,
