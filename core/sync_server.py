@@ -203,8 +203,10 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 data = json.loads(body)
                 prompt = data.get("prompt", "")
                 sensor_ctx = data.get("sensor_context", "")
-                model = data.get("model", "gemma4:e4b")
                 conv_id = data.get("conversation_id")
+                model = data.get("model") or "qwen2.5-coder:7b"
+                if model == "gemma4:e4b":
+                    model = "qwen2.5-coder:7b"
 
                 # If sensor_ctx wasn't explicitly provided, attach LATEST_TELEMETRY if recent
                 if not sensor_ctx and LATEST_TELEMETRY.get("timestamp", 0) > 0:

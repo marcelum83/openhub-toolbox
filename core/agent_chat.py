@@ -191,13 +191,13 @@ class AgentChatEngine(EventDispatcher):
             p, r, _ = self.host_bridge.get_orientation_angles()
             lux, _ = self.host_bridge.get_lux()
             db = self.host_bridge.get_audio_level_db()
-            return f"\n[Live Device Sensor State: Compass Heading={h:.1f}°, Pitch={p:.1f}°, Roll={r:.1f}°, Ambient Lux={lux:.0f} lx, Mic={db:.0f} dB]"
+            return f"Compass Heading={h:.1f}°, Pitch={p:.1f}°, Roll={r:.1f}°, Ambient Lux={lux:.0f} lx, Mic={db:.0f} dB"
         except Exception:
             return ""
 
     def _query_worker(self, user_prompt):
         sensor_info = self._get_sensor_snapshot()
-        sys_context = AGENT_SYSTEM_PROMPT + sensor_info
+        sys_context = AGENT_SYSTEM_PROMPT + (f"\n[Live Device Sensor State: {sensor_info}]" if sensor_info else "")
         
         response_text = ""
         error_text = ""
