@@ -95,14 +95,17 @@ class UpdateManager:
         self.save_settings(server_host=host)
 
     def load_local_meta(self):
-        meta_file = os.path.join(self.app_root, "installed_meta.json")
-        if os.path.exists(meta_file):
-            try:
-                with open(meta_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.local_build_ts = data.get("build_timestamp", 0)
-            except Exception:
-                pass
+        ts_candidates = [0]
+        for fname in ("build_meta.json", "installed_meta.json"):
+            meta_file = os.path.join(self.app_root, fname)
+            if os.path.exists(meta_file):
+                try:
+                    with open(meta_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        ts_candidates.append(int(data.get("build_timestamp", 0) or 0))
+                except Exception:
+                    pass
+        self.local_build_ts = max(ts_candidates)
 
     def save_installed_meta(self, build_ts, version):
         self.local_build_ts = build_ts
@@ -128,13 +131,10 @@ class UpdateManager:
                         server_ver = data.get("version", "1.0.0")
                         
                         has_update = False
-                        if self.local_build_ts == 0:
-                            # First time check: compare if server exists
+                        if server_ts > 0 and server_ts > self.local_build_ts:
                             has_update = True
-                        elif server_ts > self.local_build_ts:
-                            has_update = True
-                        
-                        self.latest_update_info = data
+
+                        self.latest_update_info = data if has_update else None
                         if on_result:
                             Clock.schedule_once(lambda dt: on_result(has_update, data, None), 0)
                         return
@@ -156,18 +156,15 @@ class UpdateManager:
                 apk_name = update_info.get("apk_filename", "openhub-1.0.0-arm64-v8a-debug.apk")
                 url = f"http://{self.server_host}/{apk_name}"
                 
-                # Determine download destination
+                # Download to app-private directory first (always writable on Android 10-15)
                 if platform == 'android':
-                    from jnius import autoclass
-                    Environment = autoclass('android.os.Environment')
-                    dl_dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath()
-                    dest_path = os.path.join(dl_dir, "openhub_update.apk")
+                    dest_path = os.path.join(self.app_root, "openhub_update.apk")
                 else:
                     dest_path = os.path.join(self.app_root, "bin", "openhub_update.apk")
                     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
                 req = urllib.request.Request(url, headers={'User-Agent': 'OpenHub-Client'})
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=15) as resp:
                     total_size = int(resp.headers.get('Content-Length', 0))
                     downloaded = 0
                     chunk_size = 65536 # 64 KB
@@ -184,14 +181,14 @@ class UpdateManager:
                                 Clock.schedule_once(lambda dt, p=percent, d=downloaded, t_s=total_size: on_progress(p, d, t_s), 0)
 
                 self.is_downloading = False
-                
-                # Save meta on successful download
-                self.save_installed_meta(update_info.get("build_timestamp", 0), update_info.get("version", "1.0.0"))
 
-                # Launch installer intent
-                success = self.install_apk(dest_path, url)
+                # Launch native package installer intent without opening Chrome
+                success, install_err = self.install_apk(dest_path)
+                if success:
+                    self.save_installed_meta(update_info.get("build_timestamp", 0), update_info.get("version", "1.0.0"))
+                    self.latest_update_info = None
                 if on_complete:
-                    Clock.schedule_once(lambda dt, s=success, p=dest_path: on_complete(s, p, None), 0)
+                    Clock.schedule_once(lambda dt, s=success, p=dest_path, err=install_err: on_complete(s, p, err), 0)
 
             except Exception as e:
                 self.is_downloading = False
@@ -201,43 +198,78 @@ class UpdateManager:
         t = threading.Thread(target=_download_worker, daemon=True)
         t.start()
 
+    def _publish_apk_to_mediastore(self, context, apk_path):
+        """Copies a private APK file into MediaStore.Downloads to get a shareable content:// URI."""
+        from jnius import autoclass
+
+        ContentValues = autoclass('android.content.ContentValues')
+        MediaStoreDownloads = autoclass('android.provider.MediaStore$Downloads')
+        Environment = autoclass('android.os.Environment')
+
+        values = ContentValues()
+        values.put("_display_name", f"openhub_update_{int(time.time())}.apk")
+        values.put("mime_type", "application/vnd.android.package-archive")
+        values.put("relative_path", Environment.DIRECTORY_DOWNLOADS)
+
+        resolver = context.getContentResolver()
+        uri = resolver.insert(MediaStoreDownloads.EXTERNAL_CONTENT_URI, values)
+        if uri is None:
+            raise RuntimeError("MediaStore returned null URI")
+
+        out_stream = resolver.openOutputStream(uri)
+        try:
+            with open(apk_path, 'rb') as f:
+                while True:
+                    buf = f.read(65536)
+                    if not buf:
+                        break
+                    out_stream.write(buf)
+            out_stream.flush()
+        finally:
+            out_stream.close()
+        return uri
+
     def install_apk(self, apk_path, fallback_url=None):
-        """Triggers native Android package installer intent or browser fallback."""
+        """Triggers native Android package installer via content:// URI (never re-opens Chrome)."""
         if platform == 'android':
             try:
                 from jnius import autoclass
                 PythonActivity = autoclass('org.kivy.android.PythonActivity')
                 Intent = autoclass('android.content.Intent')
                 Uri = autoclass('android.net.Uri')
-                File = autoclass('java.io.File')
-                
-                file_obj = File(apk_path)
-                intent = Intent(Intent.ACTION_VIEW)
-                
-                try:
-                    FileProvider = autoclass('androidx.core.content.FileProvider')
-                    context = PythonActivity.mActivity.getApplicationContext()
-                    uri = FileProvider.getUriForFile(context, "org.nexus.openhub.fileprovider", file_obj)
-                    intent.setDataAndType(uri, "application/vnd.android.package-archive")
-                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                except Exception:
-                    uri = Uri.fromFile(file_obj)
-                    intent.setDataAndType(uri, "application/vnd.android.package-archive")
+                BuildVERSION = autoclass('android.os.Build$VERSION')
 
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                PythonActivity.mActivity.startActivity(intent)
-                return True
+                activity = PythonActivity.mActivity
+                context = activity.getApplicationContext()
+
+                # Android 8+ (API 26+): ensure user granted "Install unknown apps" permission
+                if BuildVERSION.SDK_INT >= 26:
+                    pm = context.getPackageManager()
+                    if not pm.canRequestPackageInstalls():
+                        Settings = autoclass('android.provider.Settings')
+                        perm_intent = Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse(f"package:{context.getPackageName()}")
+                        )
+                        perm_intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        activity.startActivity(perm_intent)
+                        return False, "Enable 'Allow from this source', then tap RETRY INSTALL."
+
+                # Android 10+ (API 29+): use MediaStore.Downloads content:// URI (avoids FileUriExposedException)
+                if BuildVERSION.SDK_INT >= 29:
+                    uri = self._publish_apk_to_mediastore(context, apk_path)
+                else:
+                    File = autoclass('java.io.File')
+                    uri = Uri.fromFile(File(apk_path))
+
+                intent = Intent(Intent.ACTION_VIEW)
+                intent.setDataAndType(uri, "application/vnd.android.package-archive")
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK)
+                activity.startActivity(intent)
+                return True, None
             except Exception as e:
                 print(f"[UpdateManager] Native install intent error: {e}")
-                # Fallback to opening browser URL
-                try:
-                    import webbrowser
-                    if fallback_url:
-                        webbrowser.open(fallback_url)
-                        return True
-                except Exception:
-                    pass
+                return False, f"Installer error: {e}"
         else:
             print(f"[UpdateManager] Desktop simulation: downloaded APK to {apk_path}")
-            return True
-        return False
+            return True, None

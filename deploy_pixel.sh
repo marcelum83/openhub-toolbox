@@ -20,21 +20,31 @@ if [ "$SERVE_ONLY" = false ]; then
         fi
     done
 
+    # Stamp build metadata into app root BEFORE packaging so the APK knows its own build_timestamp
+    BUILD_TS=$(date +%s)
+    BUILD_DATE=$(date "+%Y-%m-%d %H:%M:%S")
+    CHANGELOG="L-system generative UI engine, .json seed modules, reliable Wi-Fi discovery, and native OTA install"
+    cat <<EOF > build_meta.json
+{
+  "version": "1.0.0",
+  "build_timestamp": ${BUILD_TS},
+  "build_date": "${BUILD_DATE}"
+}
+EOF
+
     echo "=========================================="
     echo "🔨 Building OpenHub Android APK (Release/Debug)..."
     echo "=========================================="
     buildozer android debug
 
-    # Generate version.json
-    BUILD_TS=$(date +%s)
-    BUILD_DATE=$(date "+%Y-%m-%d %H:%M:%S")
+    # Generate version.json with matching build_timestamp
     cat <<EOF > bin/version.json
 {
   "version": "1.0.0",
   "build_timestamp": ${BUILD_TS},
   "build_date": "${BUILD_DATE}",
   "apk_filename": "openhub-1.0.0-arm64-v8a-debug.apk",
-  "changelog": "OpenHub Core with 9 Sensor Tools & Live Auto-Updater"
+  "changelog": "${CHANGELOG}"
 }
 EOF
 

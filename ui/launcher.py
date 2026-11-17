@@ -59,7 +59,7 @@ class UpdateModal(ModalView):
 
         root = BoxLayout(orientation='vertical', padding=dp(18), spacing=dp(12))
         with root.canvas.before:
-            Color(0.09, 0.09, 0.13, 0.98)
+            Color(0.09, 0.09, 0.13, 1.0)
             self.bg_rect = RoundedRectangle(size=root.size, pos=root.pos, radius=[dp(18)])
             Color(0.02, 0.71, 0.83, 0.8)
             self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
@@ -164,12 +164,13 @@ class UpdateModal(ModalView):
 
     def on_download_complete(self, success, path, error):
         if success:
+            self.updater.latest_update_info = None
             self.progress_bar.set_progress(1.0)
             self.lbl_status.text = "✅ Launching Package Installer..."
             self.btn_install.text = "LAUNCHING..."
             Clock.schedule_once(lambda dt: self.dismiss(), 1.5)
         else:
-            self.lbl_status.text = f"❌ Error: {error or 'Download failed'}"
+            self.lbl_status.text = f"❌ {error or 'Download failed'}"
             self.btn_install.disabled = False
             self.btn_install.text = "RETRY INSTALL"
 
@@ -183,7 +184,7 @@ class SettingsModal(ModalView):
 
         outer = BoxLayout(orientation='vertical', padding=dp(16), spacing=dp(10))
         with outer.canvas.before:
-            Color(0.09, 0.09, 0.13, 0.98)
+            Color(0.09, 0.09, 0.13, 1.0)
             self.bg_rect = RoundedRectangle(size=outer.size, pos=outer.pos, radius=[dp(18)])
             Color(0.54, 0.36, 0.96, 0.8)
             self.border_rect = Line(rounded_rectangle=(outer.x, outer.y, outer.width, outer.height, dp(18)), width=1.5)
@@ -343,12 +344,17 @@ class SettingsModal(ModalView):
             def _on_found(discovered):
                 if discovered:
                     self.txt_host.text = discovered
+                    self.updater.save_server_host(discovered)
                     self.lbl_feedback.text = f"✅ Auto-discovered Desktop at {discovered}!"
                     self.lbl_feedback.color = (0.15, 0.85, 0.4, 1.0)
                 else:
                     self.lbl_feedback.text = "⚠️ Desktop not found. Ensure server.sh is running on PC."
                     self.lbl_feedback.color = (0.95, 0.75, 0.1, 1.0)
-            discover_server(timeout=1.5, callback=_on_found)
+            discover_server(
+                timeout=1.5,
+                callback=_on_found,
+                extra_hosts=[self.txt_host.text.strip(), self.updater.server_host],
+            )
         except Exception as e:
             self.lbl_feedback.text = f"❌ Discovery error: {e}"
             self.lbl_feedback.color = (0.9, 0.3, 0.3, 1.0)
@@ -413,7 +419,7 @@ class CommunityHubModal(ModalView):
 
         root = BoxLayout(orientation='vertical', padding=dp(14), spacing=dp(8))
         with root.canvas.before:
-            Color(0.09, 0.09, 0.13, 0.98)
+            Color(0.09, 0.09, 0.13, 1.0)
             self.bg_rect = RoundedRectangle(size=root.size, pos=root.pos, radius=[dp(18)])
             Color(0.02, 0.71, 0.83, 0.8)
             self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
@@ -814,7 +820,7 @@ class AppContextModal(ModalView):
 
         root = BoxLayout(orientation='vertical', padding=dp(16), spacing=dp(8))
         with root.canvas.before:
-            Color(0.10, 0.10, 0.15, 0.98)
+            Color(0.10, 0.10, 0.15, 1.0)
             self.bg_rect = RoundedRectangle(size=root.size, pos=root.pos, radius=[dp(18)])
             Color(*meta["border"])
             self.border_rect = Line(rounded_rectangle=(root.x, root.y, root.width, root.height, dp(18)), width=1.5)
@@ -1271,7 +1277,11 @@ class LauncherScreen(Screen):
             self.dock_bg = RoundedRectangle(size=self.dock_bar.size, pos=self.dock_bar.pos, radius=[dp(24)])
             Color(*ColorSystem.SURFACE_BORDER)
             self.dock_border = Line(rounded_rectangle=(self.dock_bar.x, self.dock_bar.y, self.dock_bar.width, self.dock_bar.height, dp(24)), width=1.2)
-        self.dock_bar.bind(size=lambda inst, v: setattr(self.dock_bg, 'size', inst.size) or setattr(self.dock_bg, 'pos', inst.pos) or setattr(self.dock_border, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(24))))
+        def _update_dock_bg(inst, *_args):
+            self.dock_bg.size = inst.size
+            self.dock_bg.pos = inst.pos
+            self.dock_border.rounded_rectangle = (inst.x, inst.y, inst.width, inst.height, dp(24))
+        self.dock_bar.bind(size=_update_dock_bg, pos=_update_dock_bg)
         
         self.dock_container.add_widget(self.dock_bar)
         self.home_container.add_widget(self.dock_container)
@@ -1302,7 +1312,7 @@ class LauncherScreen(Screen):
             spacing=dp(8)
         )
         with self.drawer_overlay.canvas.before:
-            Color(0.06, 0.06, 0.09, 1.0)
+            Color(0.07, 0.07, 0.11, 1.0)
             self.drawer_bg = Rectangle(size=self.drawer_overlay.size, pos=self.drawer_overlay.pos)
             Color(*ColorSystem.PRIMARY)
             self.drawer_border = Line(points=[self.drawer_overlay.x, self.drawer_overlay.top, self.drawer_overlay.right, self.drawer_overlay.top], width=2.0)
@@ -1311,6 +1321,14 @@ class LauncherScreen(Screen):
             self.drawer_bg.size = inst.size
             self.drawer_bg.pos = inst.pos
             self.drawer_border.points = [inst.x, inst.top, inst.right, inst.top]
+            if hasattr(self, 'forge_pill') and hasattr(self, 'fp_bg'):
+                self.fp_bg.size = self.forge_pill.size
+                self.fp_bg.pos = self.forge_pill.pos
+                self.fp_bdr.rounded_rectangle = (self.forge_pill.x, self.forge_pill.y, self.forge_pill.width, self.forge_pill.height, dp(12))
+            if hasattr(self, 'drawer_scroll') and hasattr(self, 'drawer_scroll_bg'):
+                self.drawer_scroll_bg.size = self.drawer_scroll.size
+                self.drawer_scroll_bg.pos = self.drawer_scroll.pos
+                self.drawer_scroll_bdr.rounded_rectangle = (self.drawer_scroll.x, self.drawer_scroll.y, self.drawer_scroll.width, self.drawer_scroll.height, dp(14))
 
         self.drawer_overlay.bind(size=_update_drawer_bg, pos=_update_drawer_bg)
 
@@ -1411,7 +1429,11 @@ class LauncherScreen(Screen):
             self.fp_bg = RoundedRectangle(size=self.forge_pill.size, pos=self.forge_pill.pos, radius=[dp(12)])
             Color(0.54, 0.36, 0.96, 0.7)
             self.fp_bdr = Line(rounded_rectangle=(self.forge_pill.x, self.forge_pill.y, self.forge_pill.width, self.forge_pill.height, dp(12)), width=1.0)
-        self.forge_pill.bind(size=lambda inst, v: setattr(self.fp_bg, 'size', inst.size) or setattr(self.fp_bg, 'pos', inst.pos) or setattr(self.fp_bdr, 'rounded_rectangle', (inst.x, inst.y, inst.width, inst.height, dp(12))))
+        def _update_forge_pill(inst, *_args):
+            self.fp_bg.size = inst.size
+            self.fp_bg.pos = inst.pos
+            self.fp_bdr.rounded_rectangle = (inst.x, inst.y, inst.width, inst.height, dp(12))
+        self.forge_pill.bind(size=_update_forge_pill, pos=_update_forge_pill)
         
         self.txt_create_quick = TextInput(
             hint_text='✨ Quick Create: "e.g. sound pitch graph"...',
@@ -1444,7 +1466,7 @@ class LauncherScreen(Screen):
         # Drawer 4-Column Grid of All Modules
         self.drawer_scroll = ScrollView(do_scroll_x=False, do_scroll_y=True, effect_cls='ScrollEffect')
         with self.drawer_scroll.canvas.before:
-            Color(0.08, 0.08, 0.12, 0.95)
+            Color(0.10, 0.10, 0.15, 1.0)
             self.drawer_scroll_bg = RoundedRectangle(size=self.drawer_scroll.size, pos=self.drawer_scroll.pos, radius=[dp(14)])
             Color(*ColorSystem.SURFACE_BORDER)
             self.drawer_scroll_bdr = Line(rounded_rectangle=(self.drawer_scroll.x, self.drawer_scroll.y, self.drawer_scroll.width, self.drawer_scroll.height, dp(14)), width=1.0)
@@ -1507,19 +1529,32 @@ class LauncherScreen(Screen):
 
     def toggle_app_drawer(self, open_drawer):
         self.drawer_open = open_drawer
+        Animation.cancel_all(self.drawer_overlay)
         target_y = 0.0 if open_drawer else -1.05
         anim = Animation(pos_hint={'x': 0, 'y': target_y}, duration=0.20, t='out_cubic')
-        
+
         def _sync_drawer_pos(*args):
             self.drawer_bg.size = self.drawer_overlay.size
             self.drawer_bg.pos = self.drawer_overlay.pos
             self.drawer_border.points = [self.drawer_overlay.x, self.drawer_overlay.top, self.drawer_overlay.right, self.drawer_overlay.top]
+            if hasattr(self, 'fp_bg'):
+                self.fp_bg.size = self.forge_pill.size
+                self.fp_bg.pos = self.forge_pill.pos
+                self.fp_bdr.rounded_rectangle = (self.forge_pill.x, self.forge_pill.y, self.forge_pill.width, self.forge_pill.height, dp(12))
             if hasattr(self, 'drawer_scroll_bg'):
                 self.drawer_scroll_bg.size = self.drawer_scroll.size
                 self.drawer_scroll_bg.pos = self.drawer_scroll.pos
                 self.drawer_scroll_bdr.rounded_rectangle = (self.drawer_scroll.x, self.drawer_scroll.y, self.drawer_scroll.width, self.drawer_scroll.height, dp(14))
 
-        anim.bind(on_progress=_sync_drawer_pos, on_complete=_sync_drawer_pos)
+        def _on_complete(*args):
+            _sync_drawer_pos()
+            Clock.schedule_once(_sync_drawer_pos, 0)
+            self.home_container.opacity = 0.0 if self.drawer_open else 1.0
+
+        if not open_drawer:
+            self.home_container.opacity = 1.0
+
+        anim.bind(on_progress=_sync_drawer_pos, on_complete=_on_complete)
         anim.start(self.drawer_overlay)
         if open_drawer and self.app_manager.hardware:
             self.app_manager.hardware.vibrate(25)
@@ -1653,6 +1688,8 @@ class LauncherScreen(Screen):
 
         # If dragging from drawer, animate drawer down so user sees Home Screen
         if not icon_widget.is_home and self.drawer_open:
+            self.home_container.opacity = 1.0
+            Animation.cancel_all(self.drawer_overlay)
             Animation(pos_hint={'x': 0, 'y': -0.75}, duration=0.18).start(self.drawer_overlay)
 
         if self.ghost_widget:

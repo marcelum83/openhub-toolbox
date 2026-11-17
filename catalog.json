@@ -110,6 +110,7 @@
       "engine.py",
       "llm_bridge.py",
       "main.py",
+      "main.py.txt",
       "manifest.json",
       "models.py",
       "world_gen.py"
@@ -131,6 +132,7 @@
       "dialogue_modal.py",
       "game_state.py",
       "main.py",
+      "main.py.txt",
       "manifest.json",
       "upgrade_modal.py"
     ]
@@ -190,7 +192,7 @@
     "version": "1.0.0",
     "author": "openhub",
     "category": "Tools",
-    "description": "Interactive inspector for Python standard libraries, Kivy components, functions, classes and live docstrings.",
+    "description": "Interactive Python/Kivy library inspector plus drag-and-drop visual Kivy & L-system script builder.",
     "entrypoint": "main.py",
     "trust_level": "trusted",
     "files": [
@@ -373,6 +375,21 @@
       "main.py",
       "main.py.txt",
       "manifest.json"
+    ]
+  },
+  {
+    "id": "van_microgrid",
+    "dir_name": "van_microgrid",
+    "name": "Van Micro-Grid",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Field",
+    "description": "L-system UI grown recursively from a JSON hardware seed (Van Pi + Shed Solar).",
+    "entrypoint": "seed.json",
+    "trust_level": "trusted",
+    "files": [
+      "manifest.json",
+      "seed.json"
     ]
   }
 ]

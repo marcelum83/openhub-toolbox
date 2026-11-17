@@ -13,3 +13,4 @@ bin/
 *.tmp.py
 .env
 settings.json
+build_meta.json

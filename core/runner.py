@@ -20,6 +20,7 @@ class ModuleLoader:
         1. OpenHubModule class with on_load(host_api)
         2. Kivy App subclasses (calls app.build())
         3. Standalone Widget subclasses
+        4. Declarative L-system JSON seeds (.json)
         """
         entrypoint = module_descriptor.entrypoint
         if not os.path.exists(entrypoint):
@@ -32,10 +33,15 @@ class ModuleLoader:
                     shutil.copyfile(txt_path, entrypoint)
                 except Exception:
                     pass
-            elif os.path.exists(pyc_path):
+            elif os.path.exists(pyc_path) and not entrypoint.lower().endswith(".json"):
                 entrypoint = pyc_path
             else:
                 raise FileNotFoundError(f"Entrypoint file not found: {entrypoint}")
+
+        # 0. L-system JSON Seed entrypoint
+        if entrypoint.lower().endswith(".json"):
+            from core.lsystem_ui import build_widget_from_seed_file
+            return build_widget_from_seed_file(entrypoint, host_api=host_api)
 
         # Add module directory to sys.path so it can import local helpers
         mod_dir = os.path.dirname(entrypoint)

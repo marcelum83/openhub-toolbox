@@ -1,0 +1,195 @@
+{
+  "node_type": "module_container",
+  "title": "Van Micro-Grid",
+  "subtitle": "van-pi.local",
+  "base_url": "http://van-pi.local",
+  "poll_interval": 2.5,
+  "simulate_offline": true,
+  "children": [
+    {
+      "node_type": "status_banner",
+      "text": "Grown from JSON seed. Polls live endpoints when reachable, or falls back to [SIM]."
+    },
+    {
+      "node_type": "grid_container",
+      "cols": 2,
+      "children": [
+        {
+          "node_type": "sensor_readout",
+          "label": "Leisure Battery",
+          "data_endpoint": "/batt",
+          "unit": "V",
+          "precision": 2,
+          "warn_low": 11.8,
+          "sim_value": 12.84,
+          "sim_range": [11.6, 13.8]
+        },
+        {
+          "node_type": "sensor_readout",
+          "label": "Solar Input",
+          "data_endpoint": "/solar/watts",
+          "unit": "W",
+          "precision": 0,
+          "accent": "success",
+          "sim_value": 245,
+          "sim_range": [40, 420]
+        },
+        {
+          "node_type": "sensor_readout",
+          "label": "Cabin Temp",
+          "data_endpoint": "/env/temp",
+          "unit": "°C",
+          "precision": 1,
+          "warn_high": 35.0,
+          "sim_value": 21.4,
+          "sim_range": [14.0, 29.0]
+        },
+        {
+          "node_type": "sensor_readout",
+          "label": "Fresh Water",
+          "data_endpoint": "/tank/level",
+          "unit": "%",
+          "precision": 0,
+          "warn_low": 15,
+          "sim_value": 76,
+          "sim_range": [20, 95]
+        }
+      ]
+    },
+    {
+      "node_type": "gauge_bar",
+      "label": "Fresh Water Tank",
+      "data_endpoint": "/tank/level",
+      "range": [0, 100],
+      "unit": "%",
+      "precision": 0,
+      "warn_low": 20,
+      "sim_value": 76,
+      "sim_range": [20, 95]
+    },
+    {
+      "node_type": "sparkline_chart",
+      "label": "Solar Yield Trend",
+      "data_endpoint": "/solar/watts",
+      "unit": "W",
+      "precision": 0,
+      "accent": "success",
+      "max_points": 24,
+      "sim_value": 245,
+      "sim_range": [80, 410]
+    },
+    {
+      "node_type": "module_container",
+      "title": "Cabin Actuators",
+      "subtitle": "12V Bus",
+      "children": [
+        {
+          "node_type": "actuator_slider",
+          "label": "Cabin Lights",
+          "control_endpoint": "/lights/dim",
+          "range": [0, 100],
+          "step": 5,
+          "initial": 60,
+          "unit": "%"
+        },
+        {
+          "node_type": "actuator_toggle",
+          "label": "Water Circulation Pump",
+          "control_endpoint": "/pump/power",
+          "initial": false,
+          "on_label": "RUNNING",
+          "off_label": "IDLE"
+        },
+        {
+          "node_type": "actuator_toggle",
+          "label": "Roof Vent Fan",
+          "control_endpoint": "/fan/power",
+          "initial": true,
+          "on_label": "ON",
+          "off_label": "OFF"
+        }
+      ]
+    },
+    {
+      "node_type": "module_container",
+      "title": "Homeostatic Reflexes",
+      "subtitle": "Autonomic Loops",
+      "children": [
+        {
+          "node_type": "homeostasis_rule",
+          "id": "low_batt_shed",
+          "label": "Low-Voltage Load Shed",
+          "sensor_endpoint": "/batt",
+          "operator": "<",
+          "threshold": 11.9,
+          "hysteresis": 0.3,
+          "unit": "V",
+          "target_endpoint": "/lights/dim",
+          "target_payload": { "value": 0 },
+          "restore_payload": { "value": 40 },
+          "control_endpoint": "/homeostasis/toggle",
+          "sim_value": 12.84,
+          "sim_range": [11.6, 13.8]
+        },
+        {
+          "node_type": "homeostasis_rule",
+          "id": "thermal_vent",
+          "label": "Thermal Vent Reflex",
+          "sensor_endpoint": "/env/temp",
+          "operator": ">",
+          "threshold": 26.0,
+          "hysteresis": 1.5,
+          "unit": "°C",
+          "target_endpoint": "/fan/power",
+          "target_payload": { "state": true },
+          "restore_payload": { "state": false },
+          "control_endpoint": "/homeostasis/toggle",
+          "sim_value": 21.4,
+          "sim_range": [14.0, 29.0]
+        }
+      ]
+    },
+    {
+      "node_type": "module_container",
+      "title": "Shed Solar Array",
+      "subtitle": "shed-pi.local",
+      "children": [
+        {
+          "node_type": "row_container",
+          "height": 74,
+          "children": [
+            {
+              "node_type": "sensor_readout",
+              "label": "Bank Voltage",
+              "data_endpoint": "http://shed-pi.local/bank/v",
+              "unit": "V",
+              "precision": 2,
+              "sim_value": 26.4,
+              "sim_range": [24.2, 28.6]
+            },
+            {
+              "node_type": "sensor_readout",
+              "label": "Inverter Load",
+              "data_endpoint": "http://shed-pi.local/inverter/w",
+              "unit": "W",
+              "precision": 0,
+              "warn_high": 1600,
+              "sim_value": 310,
+              "sim_range": [120, 1200]
+            }
+          ]
+        },
+        {
+          "node_type": "action_button",
+          "label": "Reset MPPT Controller",
+          "control_endpoint": "http://shed-pi.local/mppt/reset",
+          "tone": "secondary",
+          "payload": {
+            "command": "soft_reset"
+          }
+        }
+      ]
+    }
+  ]
+}
+

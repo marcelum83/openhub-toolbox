@@ -43,12 +43,16 @@ class ModuleManager:
         self.ensure_source_files()
         return self.scanner.scan_all()
 
-    def create_scratch(self, code, prompt="custom_tool"):
+    def create_scratch(self, code, prompt="custom_tool", extension=".py"):
         """
-        Creates a new disposable scratch script in modules/scratch/.
-        Filename format: tmp_NNN_<slug>.py
+        Creates a new disposable scratch script or JSON seed in modules/scratch/.
+        Filename format: tmp_NNN_<slug><extension>
         """
-        existing = [f for f in os.listdir(self.scratch_dir) if f.startswith("tmp_") and f.endswith(".py")]
+        ext = extension if extension.startswith(".") else f".{extension}"
+        existing = [
+            f for f in os.listdir(self.scratch_dir)
+            if f.startswith("tmp_") and f.endswith((".py", ".json"))
+        ]
         max_idx = 0
         for f in existing:
             m = re.match(r'^tmp_(\d+)_', f)
@@ -61,14 +65,15 @@ class ModuleManager:
         
         slug = "_".join(prompt.lower().split()[:4])
         slug = re.sub(r'[^a-z0-9_]', '', slug).strip('_') or "tool"
-        filename = f"tmp_{next_idx:03d}_{slug}.py"
+        filename = f"tmp_{next_idx:03d}_{slug}{ext}"
         file_path = os.path.join(self.scratch_dir, filename)
 
-        try:
-            from core.sanitizer import CodeSanitizer
-            code = CodeSanitizer.sanitize(code)
-        except Exception:
-            pass
+        if ext == ".py":
+            try:
+                from core.sanitizer import CodeSanitizer
+                code = CodeSanitizer.sanitize(code)
+            except Exception:
+                pass
 
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(code)
@@ -90,18 +95,21 @@ class ModuleManager:
         code = self.read_code(descriptor)
         base_name = descriptor.name.lower().replace(" ", "_")
         fork_label = f"fork_{base_name}" if not new_title else new_title.lower().replace(" ", "_")
-        return self.create_scratch(code, prompt=fork_label)
+        ext = ".json" if descriptor.entrypoint.lower().endswith(".json") else ".py"
+        return self.create_scratch(code, prompt=fork_label, extension=ext)
 
     def promote_to_permanent(self, descriptor, name, category="Tools", description=None):
         """
-        Graduates a scratch script into a permanent module directory with a manifest.json.
+        Graduates a scratch script or JSON seed into a permanent module directory with a manifest.json.
         """
         mod_id = re.sub(r'[^a-z0-9_]', '', name.lower().replace(" ", "_").replace("-", "_"))
         target_dir = os.path.join(self.modules_dir, mod_id)
         os.makedirs(target_dir, exist_ok=True)
 
         code = self.read_code(descriptor)
-        target_main = os.path.join(target_dir, "main.py")
+        is_json = descriptor.entrypoint.lower().endswith(".json")
+        entry_name = "seed.json" if is_json else "main.py"
+        target_main = os.path.join(target_dir, entry_name)
         with open(target_main, 'w', encoding='utf-8') as f:
             f.write(code)
 
@@ -113,7 +121,7 @@ class ModuleManager:
             "author": "mike",
             "category": category,
             "description": desc_text,
-            "entrypoint": "main.py",
+            "entrypoint": entry_name,
             "trust_level": TrustLevel.TRUSTED
         }
         with open(os.path.join(target_dir, "manifest.json"), 'w', encoding='utf-8') as f:

@@ -7,7 +7,7 @@ import sys
 import json
 import subprocess
 import threading
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 import urllib.parse
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -397,7 +397,7 @@ def run_server(port=8080, bind="0.0.0.0", host_ip=None):
         print(f"⚠️ Could not start discovery beacon: {e}")
 
     server_address = (bind, port)
-    httpd = HTTPServer(server_address, OpenHubSyncHandler)
+    httpd = ThreadingHTTPServer(server_address, OpenHubSyncHandler)
     print(f"==================================================")
     print(f"🚀 OpenHub Cloud Sync & Download Server Live on port {port}")
     print(f"   LAN IP:  http://{host_ip}:{port}")

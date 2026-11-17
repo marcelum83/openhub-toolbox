@@ -1,0 +1,11 @@
+{
+  "id": "van_microgrid",
+  "name": "Van Micro-Grid",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Field",
+  "description": "L-system UI grown recursively from a JSON hardware seed (Van Pi + Shed Solar).",
+  "entrypoint": "seed.json",
+  "trust_level": "trusted"
+}
+

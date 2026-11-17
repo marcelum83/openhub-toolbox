@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "author": "openhub",
   "category": "Tools",
-  "description": "Interactive inspector for Python standard libraries, Kivy components, functions, classes and live docstrings.",
+  "description": "Interactive Python/Kivy library inspector plus drag-and-drop visual Kivy & L-system script builder.",
   "entrypoint": "main.py",
   "trust_level": "trusted"
 }

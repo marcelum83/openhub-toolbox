@@ -49,27 +49,47 @@ class ForgeEngine(EventDispatcher):
         """Generate a brand new Kivy tool from a natural language prompt."""
         self._dispatch_async("generate", prompt=prompt)
 
-    def mutate(self, current_code, instruction):
-        """Mutate and extend an existing Kivy code buffer with a new instruction."""
-        self._dispatch_async("mutate", prompt=instruction, current_code=current_code)
+    def mutate(self, current_code, instruction, is_json=None):
+        """Mutate and extend an existing Kivy code buffer or L-system JSON seed."""
+        if is_json is None:
+            is_json = self._looks_like_json_seed(current_code)
+        self._dispatch_async("mutate", prompt=instruction, current_code=current_code, is_json=is_json)
 
     def fix(self, current_code, error_message):
         """Diagnose and fix a syntax or runtime error in the code."""
         prompt = f"Fix the following error in the Kivy application:\nError: {error_message}"
-        self._dispatch_async("fix", prompt=prompt, current_code=current_code)
+        self._dispatch_async("fix", prompt=prompt, current_code=current_code, is_json=False)
+
+    @staticmethod
+    def _looks_like_json_seed(text):
+        try:
+            obj = json.loads(text)
+            return isinstance(obj, dict) and "node_type" in obj
+        except Exception:
+            return False
 
     # --- Internal Background Loop ---
 
-    def _dispatch_async(self, action, prompt="", current_code=""):
+    def _dispatch_async(self, action, prompt="", current_code="", is_json=False):
         if self.is_working:
             return
         self.is_working = True
-        t = threading.Thread(target=self._worker, args=(action, prompt, current_code))
+        t = threading.Thread(target=self._worker, args=(action, prompt, current_code, is_json))
         t.daemon = True
         t.start()
 
-    def _worker(self, action, prompt, current_code):
-        system_prompt = """You are an expert Kivy and Python developer embedded in OpenHub.
+    def _worker(self, action, prompt, current_code, is_json=False):
+        if is_json:
+            system_prompt = """You are an expert OpenHub L-System UI Seed architect.
+Modify the provided JSON seed according to the user's instruction.
+Supported node_types:
+- Containers (have "children": [...]): module_container, row_container, grid_container
+- Leaves: sensor_readout, actuator_slider, actuator_toggle, action_button, gauge_bar, sparkline_chart, homeostasis_rule, status_banner
+Preserve existing fields ("base_url", "simulate_offline", endpoints) unless asked to change them.
+Return ONLY the complete valid JSON wrapped in ```json ... ``` plus a 1-sentence summary."""
+            user_message = f"Action: {action.upper()}\nInstruction: {prompt}\n\nExisting Seed:\n```json\n{current_code}\n```"
+        else:
+            system_prompt = """You are an expert Kivy and Python developer embedded in OpenHub.
 Your task is to write or modify a standalone, responsive Kivy widget or application.
 
 RULES:
@@ -107,9 +127,9 @@ class OpenHubModule(BoxLayout):
 ```
 Provide a short 1-sentence summary of what you created or changed.
 """
-        user_message = f"Action: {action.upper()}\nInstruction: {prompt}"
-        if current_code and current_code.strip():
-            user_message += f"\n\nExisting Code:\n```python\n{current_code}\n```"
+            user_message = f"Action: {action.upper()}\nInstruction: {prompt}"
+            if current_code and current_code.strip():
+                user_message += f"\n\nExisting Code:\n```python\n{current_code}\n```"
 
         full_prompt = f"{system_prompt}\n\n{user_message}"
         response_text = ""
@@ -147,7 +167,19 @@ Provide a short 1-sentence summary of what you created or changed.
 
         # 3. Fallback Synthesizer
         if not response_text:
-            response_text = self._fallback_synthesizer(prompt, current_code)
+            if is_json:
+                response_text = self._fallback_json_mutator(prompt, current_code)
+            else:
+                response_text = self._fallback_synthesizer(prompt, current_code)
+
+        if is_json:
+            seed_text = self._extract_json(response_text)
+            explanation = self._extract_explanation(response_text)
+            if not self._is_valid_json_seed(seed_text):
+                Clock.schedule_once(lambda dt: self._deliver_error(action, "Generated JSON seed is invalid."), 0.1)
+            else:
+                Clock.schedule_once(lambda dt: self._deliver_success(action, seed_text, explanation), 0.1)
+            return
 
         code = self._extract_code(response_text)
         explanation = self._extract_explanation(response_text)
@@ -174,8 +206,19 @@ Provide a short 1-sentence summary of what you created or changed.
         except Exception:
             return raw
 
+    def _extract_json(self, text):
+        match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+        if not match:
+            match = re.search(r"```\s*(\{.*\})\s*```", text, re.DOTALL)
+        raw = match.group(1).strip() if match else text.strip()
+        try:
+            parsed = json.loads(raw)
+            return json.dumps(parsed, indent=2)
+        except Exception:
+            return raw
+
     def _extract_explanation(self, text):
-        cleaned = re.sub(r"```python\s*.*?\s*```", "", text, flags=re.DOTALL).strip()
+        cleaned = re.sub(r"```(?:python|json)?\s*.*?\s*```", "", text, flags=re.DOTALL).strip()
         lines = [l for l in cleaned.split("\n") if l.strip()]
         return lines[0] if lines else "Operation completed successfully."
 
@@ -185,6 +228,98 @@ Provide a short 1-sentence summary of what you created or changed.
             return True
         except SyntaxError:
             return False
+
+    def _is_valid_json_seed(self, text):
+        try:
+            obj = json.loads(text)
+            return isinstance(obj, dict) and isinstance(obj.get("node_type"), str)
+        except Exception:
+            return False
+
+    def _fallback_json_mutator(self, prompt, current_code=""):
+        try:
+            seed = json.loads(current_code)
+            if not isinstance(seed, dict):
+                seed = {"node_type": "module_container", "title": "Hardware Node", "children": []}
+        except Exception:
+            seed = {"node_type": "module_container", "title": "Hardware Node", "children": []}
+
+        children = seed.setdefault("children", [])
+        low = prompt.lower()
+        clean_label = re.sub(r"^(add|create|insert|make)\s+(a|an|the)?\s*", "", prompt.strip(), flags=re.IGNORECASE).strip()
+        label = clean_label.title() if clean_label else "New Node"
+        slug = re.sub(r"[^a-z0-9_]+", "_", label.lower()).strip("_") or "node"
+
+        if any(k in low for k in ("slider", "dimmer", "speed", "level control")):
+            new_node = {
+                "node_type": "actuator_slider",
+                "label": label,
+                "control_endpoint": f"/{slug}/set",
+                "range": [0, 100],
+                "step": 5,
+                "initial": 0,
+                "unit": "%",
+            }
+        elif any(k in low for k in ("toggle", "switch", "pump", "fan", "heater", "relay", "light")):
+            new_node = {
+                "node_type": "actuator_toggle",
+                "label": label,
+                "control_endpoint": f"/{slug}/power",
+                "initial": False,
+            }
+        elif any(k in low for k in ("button", "reset", "trigger", "reboot")):
+            new_node = {
+                "node_type": "action_button",
+                "label": label,
+                "control_endpoint": f"/{slug}/trigger",
+                "tone": "primary",
+            }
+        elif any(k in low for k in ("rule", "homeostasis", "thermostat", "reflex", "cutoff")):
+            new_node = {
+                "node_type": "homeostasis_rule",
+                "id": slug,
+                "label": label,
+                "sensor_endpoint": "/env/temp",
+                "operator": ">",
+                "threshold": 26.0,
+                "hysteresis": 1.0,
+                "unit": "°C",
+                "target_endpoint": f"/{slug}/power",
+                "target_payload": {"state": True},
+                "restore_payload": {"state": False},
+                "sim_value": 22.0,
+                "sim_range": [16.0, 30.0],
+            }
+        elif any(k in low for k in ("sparkline", "chart", "graph", "trend")):
+            new_node = {
+                "node_type": "sparkline_chart",
+                "label": label,
+                "data_endpoint": f"/{slug}",
+                "sim_value": 50,
+                "sim_range": [10, 90],
+            }
+        elif any(k in low for k in ("gauge", "bar", "tank")):
+            new_node = {
+                "node_type": "gauge_bar",
+                "label": label,
+                "data_endpoint": f"/{slug}",
+                "range": [0, 100],
+                "unit": "%",
+                "sim_value": 65,
+                "sim_range": [10, 95],
+            }
+        else:
+            new_node = {
+                "node_type": "sensor_readout",
+                "label": label,
+                "data_endpoint": f"/{slug}",
+                "unit": "",
+                "sim_value": 24.0,
+                "sim_range": [15.0, 35.0],
+            }
+
+        children.append(new_node)
+        return f"Added {new_node['node_type']} '{label}' to JSON seed.\n\n```json\n{json.dumps(seed, indent=2)}\n```"
 
     def _fallback_synthesizer(self, prompt, current_code=""):
         return f"""Created interactive tool for: {prompt}

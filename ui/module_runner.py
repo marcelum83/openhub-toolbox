@@ -190,7 +190,8 @@ class ModuleRunnerScreen(Screen):
             return
 
         self.btn_mutate.text = "⏳ ..."
-        self.forge.mutate(current_code, instruction)
+        is_json = self.active_descriptor.entrypoint.lower().endswith(".json")
+        self.forge.mutate(current_code, instruction, is_json=is_json)
 
     def on_live_forge_success(self, instance, action, new_code, explanation):
         if action != "mutate":

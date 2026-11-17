@@ -82,10 +82,10 @@ class ModuleScanner:
                     except Exception as e:
                         print(f"[Scanner] Error parsing manifest in {item}: {e}")
 
-        # 2. Scan Scratch / Temporary Experiments in modules/scratch/*.py
+        # 2. Scan Scratch / Temporary Experiments in modules/scratch/*.py or *.json
         if os.path.exists(self.scratch_root):
             for file in sorted(os.listdir(self.scratch_root), reverse=True):
-                if file.endswith(".py") and not file.startswith("__") and not file.endswith(".tmp.py"):
+                if file.endswith((".py", ".json")) and not file.startswith("__") and not file.endswith(".tmp.py"):
                     file_path = os.path.join(self.scratch_root, file)
                     clean_name = os.path.splitext(file)[0].replace("_", " ").title()
                     desc = ModuleDescriptor(
