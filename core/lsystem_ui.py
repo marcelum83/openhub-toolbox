@@ -3,10 +3,12 @@ OpenHub L-System Generative UI Engine
 Recursively transforms declarative JSON hardware "seeds" (axioms) into live,
 interactive Kivy widget trees via registered production rules.
 """
+import copy
 import json
 import math
 import os
 import random
+import re
 import threading
 import time
 import urllib.error
@@ -100,6 +102,84 @@ def _extract_value(response_obj, value_key="value"):
     return response_obj
 
 
+def _substitute_params(obj, params):
+    """Recursively substitutes `$key` placeholders in strings inside dicts/lists."""
+    if not params:
+        return obj
+    if isinstance(obj, str):
+        def _repl(match):
+            key = match.group(1)
+            return str(params[key]) if key in params else match.group(0)
+        return re.sub(r"\$([A-Za-z_][A-Za-z0-9_]*)", _repl, obj)
+    if isinstance(obj, list):
+        return [_substitute_params(item, params) for item in obj]
+    if isinstance(obj, dict):
+        return {k: _substitute_params(v, params) for k, v in obj.items()}
+    return obj
+
+
+def expand_seed(node, rules=None, depth=0, max_generations=8):
+    """
+    Expands parametric L-system rules, `symbol` macros, and `repeat`/`items`
+    templates into a concrete widget-tree seed dictionary.
+    """
+    if depth > max_generations:
+        return node
+    if isinstance(node, list):
+        out = []
+        for item in node:
+            expanded = expand_seed(item, rules=rules, depth=depth, max_generations=max_generations)
+            if isinstance(expanded, list):
+                out.extend(expanded)
+            elif expanded is not None:
+                out.append(expanded)
+        return out
+    if not isinstance(node, dict):
+        return node
+
+    active_rules = dict(rules or {})
+    if isinstance(node.get("rules"), dict):
+        active_rules.update(node["rules"])
+
+    # 1. Symbol macro expansion: {"symbol": "relay_card", "params": {"i": 1}}
+    sym = node.get("symbol")
+    if sym and sym in active_rules:
+        template = copy.deepcopy(active_rules[sym])
+        params = dict(node.get("params") or {})
+        merged = _substitute_params(template, params)
+        if isinstance(merged, dict):
+            for k, v in node.items():
+                if k not in ("symbol", "params", "rules"):
+                    merged.setdefault(k, v)
+        return expand_seed(merged, rules=active_rules, depth=depth + 1, max_generations=max_generations)
+
+    result = copy.deepcopy(node)
+
+    # 2. Parametric repeat / items expansion on containers
+    children = list(result.get("children") or [])
+    if "template" in result and ("repeat" in result or "items" in result):
+        tpl = result.pop("template")
+        if "items" in result and isinstance(result["items"], list):
+            items = result.pop("items")
+            start = int(result.pop("start", 1))
+            for idx, item_val in enumerate(items):
+                p = {"idx": idx, "i": start + idx, "item": item_val}
+                if isinstance(item_val, dict):
+                    p.update(item_val)
+                children.append(_substitute_params(copy.deepcopy(tpl), p))
+        else:
+            count = max(0, min(64, int(result.pop("repeat", 0))))
+            start = int(result.pop("start", 1))
+            for idx in range(count):
+                p = {"idx": idx, "i": start + idx}
+                children.append(_substitute_params(copy.deepcopy(tpl), p))
+
+    if children or "children" in result:
+        result["children"] = expand_seed(children, rules=active_rules, depth=depth + 1, max_generations=max_generations)
+
+    return result
+
+
 def evaluate_hysteresis(reading, currently_triggered, operator, threshold, hysteresis=0.0):
     """
     Evaluates a threshold condition with hysteresis to prevent relay chatter.
@@ -185,19 +265,47 @@ def _attach_sensor_poller(ctx, data, fallback_key, on_reading):
 class LSystemContext:
     """Shared runtime context passed through recursive production rule expansion."""
 
-    def __init__(self, host_api=None, base_url=None, simulate_offline=True, force_sim=False, default_poll=2.5):
+    def __init__(
+        self,
+        host_api=None,
+        base_url=None,
+        simulate_offline=True,
+        force_sim=False,
+        default_poll=2.5,
+        visited_seed_urls=None,
+    ):
         self.host_api = host_api
         self.base_url = base_url
         self.simulate_offline = simulate_offline
         self.force_sim = force_sim
         self.default_poll = float(default_poll)
+        self.visited_seed_urls = set(visited_seed_urls or ())
         self.sim_state = {}
         self._poll_specs = []
         self._scheduled_events = []
         self._cleanup_callbacks = []
         self._status_listeners = []
+        self._child_contexts = []
         self._last_mode = "SIM" if force_sim else "LIVE"
-        self._alive = True
+        self._alive = False
+
+    def create_child(self, base_url=None, simulate_offline=None, default_poll=None, seed_url=None):
+        """Creates a lifecycle-linked child context for a docked remote node."""
+        visited = set(self.visited_seed_urls)
+        if seed_url:
+            visited.add(seed_url)
+        child = LSystemContext(
+            host_api=self.host_api,
+            base_url=base_url if base_url is not None else self.base_url,
+            simulate_offline=self.simulate_offline if simulate_offline is None else simulate_offline,
+            force_sim=self.force_sim,
+            default_poll=self.default_poll if default_poll is None else default_poll,
+            visited_seed_urls=visited,
+        )
+        for listener in self._status_listeners:
+            child.add_status_listener(listener)
+        self._child_contexts.append(child)
+        return child
 
     def register_poller(self, interval, callback):
         """Registers a periodic callback managed by the root widget lifecycle."""
@@ -222,7 +330,7 @@ class LSystemContext:
                 pass
 
     def start(self):
-        """Starts all registered polling schedules."""
+        """Starts all registered polling schedules and docked child contexts."""
         self.stop()
         self._alive = True
         for interval, cb in self._poll_specs:
@@ -230,10 +338,15 @@ class LSystemContext:
             ev_once = Clock.schedule_once(lambda _dt, fn=cb: fn(0), 0.05)
             ev_int = Clock.schedule_interval(cb, interval)
             self._scheduled_events.extend([ev_once, ev_int])
+        for child in list(self._child_contexts):
+            child.force_sim = self.force_sim
+            child.start()
 
     def stop(self):
-        """Stops all active polling schedules and pending widget timers."""
+        """Stops all active polling schedules, docked child contexts, and pending timers."""
         self._alive = False
+        for child in list(self._child_contexts):
+            child.stop()
         for ev in self._scheduled_events:
             try:
                 ev.cancel()
@@ -1070,12 +1183,247 @@ class UI_Rules:
         _attach_sensor_poller(ctx, data, f"rule:{rule_id}", _on_reading)
         return card
 
+    @staticmethod
+    def build_node_graft(data, grow_function, ctx, depth=0):
+        """
+        Docks a remote organism's JSON seed (`seed_url`) into the current L-system tree.
+        If unreachable, displays DETACHED status and optionally grows `fallback_seed`.
+        """
+        title = str(data.get("title", "Remote Organism"))
+        seed_url = _resolve_endpoint(data.get("seed_url"), ctx.base_url)
+        fallback_seed = data.get("fallback_seed")
+
+        card = BoxLayout(
+            orientation="vertical",
+            padding=[dp(10), dp(10), dp(10), dp(10)],
+            spacing=dp(8),
+            size_hint_y=None,
+        )
+        card.bind(minimum_height=card.setter("height"))
+        _bind_card_bg(card, ColorSystem.SURFACE, ColorSystem.SECONDARY, radius=12)
+
+        header = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(30), spacing=dp(8))
+        lbl_title = Label(
+            text=f"🔌 {title}",
+            font_size="14sp",
+            bold=True,
+            color=ColorSystem.SECONDARY,
+            halign="left",
+            valign="middle",
+        )
+        lbl_title.bind(size=lbl_title.setter("text_size"))
+
+        lbl_status = Label(
+            text="DOCKING...",
+            font_size="10sp",
+            bold=True,
+            color=ColorSystem.PRIMARY,
+            size_hint_x=None,
+            width=dp(84),
+            halign="right",
+            valign="middle",
+        )
+        lbl_status.bind(size=lbl_status.setter("text_size"))
+
+        btn_retry = Button(
+            text="↻ DOCK",
+            size_hint_x=None,
+            width=dp(68),
+            background_normal="",
+            background_color=ColorSystem.SURFACE_HOVER,
+            color=ColorSystem.PRIMARY,
+            bold=True,
+            font_size="11sp",
+        )
+        header.add_widget(lbl_title)
+        header.add_widget(lbl_status)
+        header.add_widget(btn_retry)
+        card.add_widget(header)
+
+        body = BoxLayout(orientation="vertical", spacing=dp(6), size_hint_y=None)
+        body.bind(minimum_height=body.setter("height"))
+        card.add_widget(body)
+
+        active_child = {"ctx": None}
+
+        def _clear_child():
+            if active_child["ctx"] is not None:
+                active_child["ctx"].stop()
+                if active_child["ctx"] in ctx._child_contexts:
+                    ctx._child_contexts.remove(active_child["ctx"])
+                active_child["ctx"] = None
+            body.clear_widgets()
+
+        def _mount_seed(remote_seed, is_fallback=False):
+            _clear_child()
+            parsed = urllib.parse.urlparse(seed_url or "")
+            derived_base = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ctx.base_url
+            child_ctx = ctx.create_child(
+                base_url=remote_seed.get("base_url") or derived_base,
+                simulate_offline=remote_seed.get("simulate_offline", ctx.simulate_offline),
+                default_poll=remote_seed.get("poll_interval", ctx.default_poll),
+                seed_url=seed_url,
+            )
+            active_child["ctx"] = child_ctx
+            grown = grow_function(remote_seed, ctx=child_ctx, depth=depth + 1)
+            if grown is not None:
+                body.add_widget(grown)
+            if ctx._alive:
+                child_ctx.start()
+            lbl_status.text = "FALLBACK" if is_fallback else "DOCKED"
+            lbl_status.color = ColorSystem.WARNING if is_fallback else ColorSystem.SUCCESS
+
+        def _show_detached(reason):
+            _clear_child()
+            if isinstance(fallback_seed, dict):
+                _mount_seed(fallback_seed, is_fallback=True)
+                return
+            lbl_status.text = "DETACHED"
+            lbl_status.color = ColorSystem.TEXT_HINT
+            note = Label(
+                text=f"Offline ({seed_url or 'no seed_url'}): {reason}",
+                font_size="11sp",
+                color=ColorSystem.TEXT_MUTED,
+                size_hint_y=None,
+                height=dp(28),
+                halign="left",
+                valign="middle",
+            )
+            note.bind(size=note.setter("text_size"))
+            body.add_widget(note)
+
+        def _attempt_dock(*_args):
+            if not seed_url:
+                _show_detached("missing seed_url")
+                return
+            if seed_url in ctx.visited_seed_urls:
+                _show_detached("cycle detected")
+                return
+            if ctx.force_sim:
+                if isinstance(fallback_seed, dict):
+                    _mount_seed(fallback_seed, is_fallback=True)
+                else:
+                    _show_detached("SIM mode")
+                return
+
+            lbl_status.text = "DOCKING..."
+            lbl_status.color = ColorSystem.PRIMARY
+
+            def _worker():
+                try:
+                    remote_seed = _http_request(seed_url, method="GET", timeout=1.5)
+                    if not isinstance(remote_seed, dict) or "node_type" not in remote_seed:
+                        raise ValueError("Invalid remote seed payload")
+                    Clock.schedule_once(lambda _dt: _mount_seed(remote_seed, is_fallback=False), 0)
+                except Exception as exc:
+                    Clock.schedule_once(lambda _dt, err=str(exc): _show_detached(err), 0)
+
+            threading.Thread(target=_worker, daemon=True).start()
+
+        btn_retry.bind(on_release=_attempt_dock)
+        _attempt_dock()
+        return card
+
+    @staticmethod
+    def build_edge_dock(data, grow_function, ctx, depth=0):
+        """
+        Zero-config LAN Hardware Dock: discovers Pi/ESP32 edge nodes on Wi-Fi
+        and grafts each discovered node's `/seed.json` UI into this container.
+        """
+        title = str(data.get("title", "LAN Edge Hardware Dock"))
+        ports = tuple(int(p) for p in data.get("ports", [8090]))
+        extra_hosts = data.get("extra_hosts")
+
+        card = BoxLayout(
+            orientation="vertical",
+            padding=[dp(10), dp(10), dp(10), dp(10)],
+            spacing=dp(8),
+            size_hint_y=None,
+        )
+        card.bind(minimum_height=card.setter("height"))
+        _bind_card_bg(card, ColorSystem.SURFACE, ColorSystem.PRIMARY, radius=12)
+
+        header = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(32), spacing=dp(8))
+        lbl_title = Label(
+            text=f"🛰️ {title}",
+            font_size="14sp",
+            bold=True,
+            color=ColorSystem.PRIMARY,
+            halign="left",
+            valign="middle",
+        )
+        lbl_title.bind(size=lbl_title.setter("text_size"))
+
+        btn_scan = Button(
+            text="🔍 SCAN LAN",
+            size_hint_x=None,
+            width=dp(106),
+            background_normal="",
+            background_color=ColorSystem.PRIMARY,
+            color=ColorSystem.BG_DARK,
+            bold=True,
+            font_size="11sp",
+        )
+        header.add_widget(lbl_title)
+        header.add_widget(btn_scan)
+        card.add_widget(header)
+
+        lbl_status = Label(
+            text="Scanning Wi-Fi for edge nodes...",
+            font_size="11sp",
+            color=ColorSystem.TEXT_MUTED,
+            size_hint_y=None,
+            height=dp(22),
+            halign="left",
+            valign="middle",
+        )
+        lbl_status.bind(size=lbl_status.setter("text_size"))
+        card.add_widget(lbl_status)
+
+        body = BoxLayout(orientation="vertical", spacing=dp(8), size_hint_y=None)
+        body.bind(minimum_height=body.setter("height"))
+        card.add_widget(body)
+
+        def _on_nodes_found(nodes):
+            body.clear_widgets()
+            if not nodes:
+                lbl_status.text = "No live edge nodes found. Start tools/pi_node_server.py --port 8090 or check Wi-Fi."
+                lbl_status.color = ColorSystem.WARNING
+                return
+            lbl_status.text = f"Discovered {len(nodes)} edge node(s) — grafting seeds:"
+            lbl_status.color = ColorSystem.SUCCESS
+            for item in nodes:
+                graft_seed = {
+                    "node_type": "node_graft",
+                    "title": item.get("name", item.get("ip", "Edge Node")),
+                    "seed_url": item.get("seed_url"),
+                }
+                w = grow_function(graft_seed, ctx=ctx, depth=depth + 1)
+                if w is not None:
+                    body.add_widget(w)
+
+        def _run_scan(*_args):
+            lbl_status.text = "Scanning Wi-Fi (UDP 8091 + HTTP /seed.json)..."
+            lbl_status.color = ColorSystem.PRIMARY
+            try:
+                from core.discovery import discover_edge_nodes
+                discover_edge_nodes(timeout=1.2, ports=ports, callback=_on_nodes_found, extra_hosts=extra_hosts)
+            except Exception as e:
+                lbl_status.text = f"Scan error: {e}"
+                lbl_status.color = ColorSystem.DANGER
+
+        btn_scan.bind(on_release=_run_scan)
+        _run_scan()
+        return card
+
 
 # Grammar Registry: maps `node_type` -> (builder_fn, is_container)
 PRODUCTION_RULES = {
     "module_container": (UI_Rules.build_container, True),
     "row_container": (UI_Rules.build_row, True),
     "grid_container": (UI_Rules.build_grid, True),
+    "node_graft": (UI_Rules.build_node_graft, True),
+    "edge_dock": (UI_Rules.build_edge_dock, True),
     "sensor_readout": (UI_Rules.build_sensor, False),
     "actuator_slider": (UI_Rules.build_actuator_slider, False),
     "actuator_toggle": (UI_Rules.build_actuator_toggle, False),
@@ -1098,6 +1446,8 @@ def grow_ui_from_seed(seed_data, ctx=None, depth=0, max_depth=16):
     """
     if not isinstance(seed_data, dict):
         return None
+    if depth == 0:
+        seed_data = expand_seed(seed_data)
     if depth > max_depth:
         return Label(
             text="Max L-system recursion depth reached",

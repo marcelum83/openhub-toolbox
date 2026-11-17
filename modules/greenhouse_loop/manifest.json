@@ -1,0 +1,11 @@
+{
+  "id": "greenhouse_loop",
+  "name": "Greenhouse Loop",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Field",
+  "description": "Passive thermosiphon solar loop & greenhouse homeostasis seed with live node_graft docking.",
+  "entrypoint": "seed.json",
+  "trust_level": "trusted"
+}
+

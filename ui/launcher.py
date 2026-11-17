@@ -1072,6 +1072,9 @@ class AppIconWidget(BoxLayout):
                 if self.long_press_event:
                     self.long_press_event.cancel()
                     self.long_press_event = None
+                self.border_line.width = 1.4
+                touch.ungrab(self)
+                return False
 
             if self.is_dragging and self.launcher_screen:
                 self.launcher_screen.update_drag_ghost(touch.pos)
@@ -1088,8 +1091,9 @@ class AppIconWidget(BoxLayout):
 
             if self.is_dragging:
                 self.is_dragging = False
+                moved_dist = ((touch.pos[0] - self.touch_start_pos[0]) ** 2 + (touch.pos[1] - self.touch_start_pos[1]) ** 2) ** 0.5
                 if self.launcher_screen:
-                    self.launcher_screen.finish_drag(self, touch.pos)
+                    self.launcher_screen.finish_drag(self, touch.pos, moved_dist=moved_dist)
                 return True
 
             if self.collide_point(*touch.pos):
@@ -1703,7 +1707,25 @@ class LauncherScreen(Screen):
         if self.ghost_widget:
             self.ghost_widget.pos = (touch_pos[0] - dp(34), touch_pos[1] - dp(34))
 
-    def finish_drag(self, icon_widget, touch_pos):
+    def _find_home_drop_index(self, touch_pos):
+        """Returns the target Home Grid slot index closest to touch_pos."""
+        if not self.home_grid.children:
+            return 0
+        # GridLayout stores children in reverse order; reverse back to visual slot order
+        ordered = list(reversed(self.home_grid.children))
+        gx, gy = self.home_grid.to_widget(*touch_pos)
+        best_idx = len(ordered) - 1
+        best_d2 = float("inf")
+        for idx, child in enumerate(ordered):
+            if child.collide_point(gx, gy):
+                return idx
+            d2 = (gx - child.center_x) ** 2 + (gy - child.center_y) ** 2
+            if d2 < best_d2:
+                best_d2 = d2
+                best_idx = idx
+        return best_idx
+
+    def finish_drag(self, icon_widget, touch_pos, moved_dist=0.0):
         Animation(opacity=0.0, duration=0.15).start(self.remove_drop_zone)
         
         if self.ghost_widget:
@@ -1720,19 +1742,28 @@ class LauncherScreen(Screen):
                     self.app_manager.hardware.vibrate(40)
             return
 
-        # Dragged from drawer onto Home Screen
+        # Dragged from drawer onto Home Screen (inserts at drop slot)
         if not icon_widget.is_home:
             if touch_pos[1] > dp(130):
                 if icon_widget.descriptor:
-                    self.layout_mgr.pin_app(icon_widget.descriptor.id)
-                    self.show_toast(f"Pinned '{icon_widget.descriptor.name}' to Home Screen")
+                    target_idx = self._find_home_drop_index(touch_pos)
+                    self.layout_mgr.pin_app(icon_widget.descriptor.id, index=target_idx)
+                    self.show_toast(f"Pinned '{icon_widget.descriptor.name}' to slot {target_idx + 1}")
                     self.rebuild_home_grid()
                     if self.app_manager.hardware:
                         self.app_manager.hardware.vibrate(50)
             self.toggle_app_drawer(False)
         else:
-            # Tap / Long press on Home opens context menu
-            AppContextModal(icon_widget.descriptor, is_pinned=True, launcher_screen=self).open()
+            # Dragged onto another Home Grid slot -> reorder; stationary long-press -> Context Modal
+            if moved_dist > dp(18) and self.home_scroll.collide_point(*touch_pos) and icon_widget.descriptor:
+                target_idx = self._find_home_drop_index(touch_pos)
+                self.layout_mgr.pin_app(icon_widget.descriptor.id, index=target_idx)
+                self.show_toast(f"Moved '{icon_widget.descriptor.name}' to slot {target_idx + 1}")
+                self.rebuild_home_grid()
+                if self.app_manager.hardware:
+                    self.app_manager.hardware.vibrate(35)
+            else:
+                AppContextModal(icon_widget.descriptor, is_pinned=True, launcher_screen=self).open()
 
     # ----------------------------------------------------
     # QUICK AI CREATION & ACTIONS

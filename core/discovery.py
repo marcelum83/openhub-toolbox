@@ -11,6 +11,8 @@ import threading
 
 DISCOVERY_PORT = 8089
 PROBE_MESSAGE = b"OPENHUB_DISCOVER"
+EDGE_DISCOVERY_PORT = 8091
+EDGE_PROBE_MESSAGE = b"OPENHUB_EDGE_DISCOVER"
 
 
 class LANDiscoveryBeacon:
@@ -169,10 +171,8 @@ def _probe_http_server(ip, port=8080, timeout=0.45):
     return None
 
 
-def _http_subnet_scan(local_ips, port=8080, extra_hosts=None):
-    """Fast concurrent TCP+HTTP /version.json scan across active local /24 subnets."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
+def _build_subnet_candidates(local_ips, extra_hosts=None):
+    """Builds ordered candidate IP list across active /24 subnets."""
     if isinstance(local_ips, str):
         local_ips = [local_ips]
     local_ips = [ip for ip in (local_ips or []) if ip]
@@ -197,7 +197,33 @@ def _http_subnet_scan(local_ips, port=8080, extra_hosts=None):
             rest = [f"{prefix}.{i}" for i in range(1, 255) if f"{prefix}.{i}" not in priority and f"{prefix}.{i}" != local_ip]
             candidates.extend(priority + rest)
 
-    candidates = list(dict.fromkeys(candidates))
+    return list(dict.fromkeys(candidates))
+
+
+def _build_udp_targets(local_ips):
+    """Builds broadcast + neighbor UDP probe targets."""
+    targets = ["255.255.255.255"]
+    for local_ip in local_ips:
+        if "." in local_ip:
+            prefix = ".".join(local_ip.split(".")[:3])
+            targets.extend([f"{prefix}.255", f"{prefix}.1"])
+    try:
+        if os.path.exists("/proc/net/arp"):
+            with open("/proc/net/arp", "r") as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) > 0 and parts[0] != "IP":
+                        targets.append(parts[0])
+    except Exception:
+        pass
+    return list(dict.fromkeys(targets))
+
+
+def _http_subnet_scan(local_ips, port=8080, extra_hosts=None):
+    """Fast concurrent TCP+HTTP /version.json scan across active local /24 subnets."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    candidates = _build_subnet_candidates(local_ips, extra_hosts=extra_hosts)
     if not candidates:
         return None
 
@@ -246,21 +272,7 @@ def discover_server(timeout=1.5, callback=None, extra_hosts=None):
                     beacon_sock.close()
                 beacon_sock = None
 
-            targets = ["255.255.255.255"]
-            for local_ip in local_ips:
-                if "." in local_ip:
-                    prefix = ".".join(local_ip.split(".")[:3])
-                    targets.extend([f"{prefix}.255", f"{prefix}.1"])
-            try:
-                if os.path.exists("/proc/net/arp"):
-                    with open("/proc/net/arp", "r") as f:
-                        for line in f:
-                            parts = line.split()
-                            if len(parts) > 0 and parts[0] != "IP":
-                                targets.append(parts[0])
-            except Exception:
-                pass
-            targets = list(dict.fromkeys(targets))
+            targets = _build_udp_targets(local_ips)
 
             start_t = time.time()
             udp_budget = min(1.0, float(timeout))
@@ -312,6 +324,133 @@ def discover_server(timeout=1.5, callback=None, extra_hosts=None):
                 Clock.schedule_once(lambda dt: callback(discovered), 0)
             except Exception:
                 callback(discovered)
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+
+def _probe_edge_seed(ip, port=8090, timeout=0.45):
+    """Checks whether an OpenHub edge node serves /seed.json at ip:port."""
+    try:
+        with socket.create_connection((ip, int(port)), timeout=min(0.22, timeout)):
+            pass
+        import urllib.request
+        url = f"http://{ip}:{port}/seed.json"
+        req = urllib.request.Request(url, headers={"User-Agent": "OpenHub-EdgeDiscovery"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                if isinstance(data, dict) and "node_type" in data:
+                    return {
+                        "service": "openhub_edge",
+                        "name": data.get("title", f"Edge Node ({ip})"),
+                        "ip": ip,
+                        "port": int(port),
+                        "seed_url": url,
+                    }
+    except Exception:
+        pass
+    return None
+
+
+def discover_edge_nodes(timeout=1.4, ports=(8090,), callback=None, extra_hosts=None):
+    """
+    Discovers OpenHub L-system Edge Hardware Nodes (Van Pi, Shed Solar, Greenhouse)
+    via UDP beacon probes on port 8091, with fast HTTP /seed.json subnet scan fallback.
+    Dispatches callback(list_of_node_dicts).
+    """
+    def _worker():
+        found = {}
+        local_ips = _get_local_ipv4s()
+
+        # 1. UDP Edge Node Discovery on EDGE_DISCOVERY_PORT (8091)
+        try:
+            probe_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            probe_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            probe_sock.settimeout(0.2)
+
+            beacon_sock = None
+            try:
+                beacon_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                beacon_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                beacon_sock.bind(("", EDGE_DISCOVERY_PORT))
+                beacon_sock.settimeout(0.05)
+            except Exception:
+                if beacon_sock:
+                    beacon_sock.close()
+                beacon_sock = None
+
+            targets = _build_udp_targets(local_ips)
+            start_t = time.time()
+            udp_budget = min(0.9, float(timeout))
+            while time.time() - start_t < udp_budget:
+                for t in targets:
+                    try:
+                        probe_sock.sendto(EDGE_PROBE_MESSAGE, (t, EDGE_DISCOVERY_PORT))
+                    except Exception:
+                        pass
+                for s in (probe_sock, beacon_sock):
+                    if s is None:
+                        continue
+                    try:
+                        while True:
+                            data, addr = s.recvfrom(1024)
+                            if EDGE_PROBE_MESSAGE in data:
+                                continue
+                            info = json.loads(data.decode("utf-8"))
+                            if info.get("service") == "openhub_edge" and info.get("seed_url"):
+                                seed_url = info["seed_url"]
+                                found[seed_url] = {
+                                    "service": "openhub_edge",
+                                    "name": info.get("name", f"Edge ({addr[0]})"),
+                                    "ip": info.get("ip", addr[0]),
+                                    "port": info.get("port", 8090),
+                                    "seed_url": seed_url,
+                                }
+                    except (socket.timeout, BlockingIOError):
+                        pass
+                    except Exception:
+                        pass
+                if found:
+                    break
+                time.sleep(0.08)
+
+            probe_sock.close()
+            if beacon_sock:
+                beacon_sock.close()
+        except Exception as e:
+            print(f"[EdgeDiscovery] UDP probe notice: {e}")
+
+        # 2. HTTP /seed.json subnet scan fallback if UDP found nothing
+        if not found:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            candidates = _build_subnet_candidates(local_ips, extra_hosts=extra_hosts)
+            pool = ThreadPoolExecutor(max_workers=64)
+            try:
+                futures = [
+                    pool.submit(_probe_edge_seed, ip, p)
+                    for p in ports
+                    for ip in candidates
+                ]
+                for fut in as_completed(futures, timeout=2.5):
+                    try:
+                        res = fut.result()
+                        if res and res["seed_url"] not in found:
+                            found[res["seed_url"]] = res
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            finally:
+                pool.shutdown(wait=False, cancel_futures=True)
+
+        nodes_list = list(found.values())
+        if callback:
+            try:
+                from kivy.clock import Clock
+                Clock.schedule_once(lambda dt: callback(nodes_list), 0)
+            except Exception:
+                callback(nodes_list)
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()

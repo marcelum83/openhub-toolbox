@@ -11,10 +11,14 @@ import argparse
 import json
 import math
 import os
+import socket
 import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+EDGE_DISCOVERY_PORT = 8091
+EDGE_PROBE_MESSAGE = b"OPENHUB_EDGE_DISCOVER"
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
@@ -287,10 +291,66 @@ def make_handler(state):
     return NodeHandler
 
 
+def _get_lan_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+def start_edge_beacon(name, port, stop_evt, host_ip=None):
+    """Broadcasts presence & answers OPENHUB_EDGE_DISCOVER probes on UDP 8091."""
+    adv_ip = host_ip if host_ip and host_ip != "0.0.0.0" else _get_lan_ip()
+    payload = json.dumps({
+        "service": "openhub_edge",
+        "name": name,
+        "ip": adv_ip,
+        "port": int(port),
+        "seed_url": f"http://{adv_ip}:{port}/seed.json",
+    }).encode("utf-8")
+
+    def _loop():
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("", EDGE_DISCOVERY_PORT))
+        except Exception:
+            pass
+        sock.settimeout(0.5)
+        last_bc = 0.0
+        while not stop_evt.is_set():
+            now = time.time()
+            if now - last_bc >= 3.0:
+                last_bc = now
+                for dest in ("255.255.255.255", "<broadcast>"):
+                    try:
+                        sock.sendto(payload, (dest, EDGE_DISCOVERY_PORT))
+                    except Exception:
+                        pass
+            try:
+                data, addr = sock.recvfrom(1024)
+                if EDGE_PROBE_MESSAGE in data:
+                    sock.sendto(payload, addr)
+            except (socket.timeout, BlockingIOError):
+                pass
+            except Exception:
+                pass
+        sock.close()
+
+    threading.Thread(target=_loop, daemon=True).start()
+
+
 def main():
     parser = argparse.ArgumentParser(description="OpenHub L-System Edge Node Seed Server")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8090, help="HTTP port (default: 8090)")
+    parser.add_argument("--name", default="Van Micro-Grid (Live Pi)", help="Advertised node name")
+    parser.add_argument("--no-beacon", action="store_true", help="Disable UDP 8091 discovery beacon")
     args = parser.parse_args()
 
     state = EdgeNodeState()
@@ -305,6 +365,10 @@ def main():
             stop_evt.wait(1.0)
 
     threading.Thread(target=_homeostasis_loop, daemon=True).start()
+    if not args.no_beacon:
+        start_edge_beacon(args.name, args.port, stop_evt, host_ip=args.host)
+        print(f"[EdgeNode] Discovery beacon active on UDP {EDGE_DISCOVERY_PORT}")
+
     server = ThreadingHTTPServer((args.host, args.port), make_handler(state))
     print(f"[EdgeNode] Serving L-system seed at http://127.0.0.1:{args.port}/seed.json")
     try:

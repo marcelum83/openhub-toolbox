@@ -1,0 +1,11 @@
+{
+  "id": "edge_dock",
+  "name": "Edge Hardware Dock",
+  "version": "1.0.0",
+  "author": "mike",
+  "category": "Field",
+  "description": "Zero-config LAN edge node scanner (UDP 8091 + HTTP /seed.json) and parametric L-system relay matrix.",
+  "entrypoint": "seed.json",
+  "trust_level": "trusted"
+}
+

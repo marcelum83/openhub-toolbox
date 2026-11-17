@@ -138,6 +138,21 @@
     ]
   },
   {
+    "id": "edge_dock",
+    "dir_name": "edge_dock",
+    "name": "Edge Hardware Dock",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Field",
+    "description": "Zero-config LAN edge node scanner (UDP 8091 + HTTP /seed.json) and parametric L-system relay matrix.",
+    "entrypoint": "seed.json",
+    "trust_level": "trusted",
+    "files": [
+      "manifest.json",
+      "seed.json"
+    ]
+  },
+  {
     "id": "field_ops",
     "dir_name": "field_ops",
     "name": "Field Operations & Jobs",
@@ -167,6 +182,21 @@
       "main.py",
       "main.py.txt",
       "manifest.json"
+    ]
+  },
+  {
+    "id": "greenhouse_loop",
+    "dir_name": "greenhouse_loop",
+    "name": "Greenhouse Loop",
+    "version": "1.0.0",
+    "author": "mike",
+    "category": "Field",
+    "description": "Passive thermosiphon solar loop & greenhouse homeostasis seed with live node_graft docking.",
+    "entrypoint": "seed.json",
+    "trust_level": "trusted",
+    "files": [
+      "manifest.json",
+      "seed.json"
     ]
   },
   {

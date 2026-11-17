@@ -298,12 +298,15 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 description = data.get("description", f"Created via OpenHub: {name}")
 
                 if not code:
-                    self.send_error(400, "Missing Python code")
+                    self.send_error(400, "Missing module code or seed")
                     return
 
+                is_json_seed = False
                 try:
-                    from core.sanitizer import CodeSanitizer
-                    code = CodeSanitizer.sanitize(code)
+                    parsed_seed = json.loads(code)
+                    if isinstance(parsed_seed, dict) and "node_type" in parsed_seed:
+                        is_json_seed = True
+                        code = json.dumps(parsed_seed, indent=2)
                 except Exception:
                     pass
 
@@ -311,10 +314,21 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                 target_dir = os.path.join(MODULES_DIR, mod_id)
                 os.makedirs(target_dir, exist_ok=True)
 
-                with open(os.path.join(target_dir, "main.py"), "w", encoding="utf-8") as f:
-                    f.write(code)
-                with open(os.path.join(target_dir, "main.py.txt"), "w", encoding="utf-8") as f:
-                    f.write(code)
+                if is_json_seed:
+                    entry_name = "seed.json"
+                    with open(os.path.join(target_dir, "seed.json"), "w", encoding="utf-8") as f:
+                        f.write(code)
+                else:
+                    entry_name = "main.py"
+                    try:
+                        from core.sanitizer import CodeSanitizer
+                        code = CodeSanitizer.sanitize(code)
+                    except Exception:
+                        pass
+                    with open(os.path.join(target_dir, "main.py"), "w", encoding="utf-8") as f:
+                        f.write(code)
+                    with open(os.path.join(target_dir, "main.py.txt"), "w", encoding="utf-8") as f:
+                        f.write(code)
 
                 manifest = {
                     "id": mod_id,
@@ -323,7 +337,7 @@ class OpenHubSyncHandler(SimpleHTTPRequestHandler):
                     "author": data.get("author", "mobile_agent"),
                     "category": category,
                     "description": description,
-                    "entrypoint": "main.py",
+                    "entrypoint": entry_name,
                     "trust_level": "trusted"
                 }
                 with open(os.path.join(target_dir, "manifest.json"), "w", encoding="utf-8") as f:

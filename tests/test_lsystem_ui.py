@@ -17,11 +17,13 @@ if ROOT_DIR not in sys.path:
 
 from kivy.clock import Clock
 
+from core.discovery import discover_edge_nodes
 from core.forge_agent import ForgeEngine
 from core.lsystem_ui import (
     LSystemContext,
     LSystemRootWidget,
     evaluate_hysteresis,
+    expand_seed,
     grow_ui_from_seed,
     register_rule,
 )
@@ -329,6 +331,146 @@ class TestLSystemUI(unittest.TestCase):
         edge.step_homeostasis()
         self.assertFalse(edge.rules["low_batt_shed"]["triggered"])
         self.assertEqual(edge.lights_dim, 40)
+
+    def test_node_graft_docks_remote_seed_and_handles_cycles_and_fallback(self):
+        state = EdgeNodeState()
+        server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(state))
+        port = server.server_address[1]
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            seed = {
+                "node_type": "module_container",
+                "title": "Composite Organism",
+                "simulate_offline": False,
+                "children": [
+                    {
+                        "node_type": "node_graft",
+                        "title": "Van Pi Bus",
+                        "seed_url": f"http://127.0.0.1:{port}/seed.json",
+                    },
+                    {
+                        "node_type": "node_graft",
+                        "title": "Offline Shed",
+                        "seed_url": "http://127.0.0.1:9/seed.json",
+                        "fallback_seed": {
+                            "node_type": "status_banner",
+                            "text": "Detached Fallback Banner",
+                        },
+                    },
+                ],
+            }
+            root = LSystemRootWidget(seed_data=seed)
+            root.on_resume()
+
+            container = root.tree_host.children[0]
+            # container children are reversed: [1]=Van Pi Bus, [0]=Offline Shed
+            graft_live = container.children[1]
+            graft_fallback = container.children[0]
+
+            deadline = time.time() + 2.5
+            while time.time() < deadline:
+                Clock.tick()
+                if len(graft_live.children[0].children) > 0 and len(graft_fallback.children[0].children) > 0:
+                    # Wait until child context actually docked
+                    status_lbl = graft_live.children[1].children[1]
+                    if status_lbl.text == "DOCKED":
+                        break
+                time.sleep(0.03)
+
+            self.assertEqual(graft_live.children[1].children[1].text, "DOCKED")
+            self.assertEqual(graft_fallback.children[1].children[1].text, "FALLBACK")
+            self.assertGreater(len(root.ctx._child_contexts), 0)
+            root.on_pause()
+            self.assertFalse(all(c._alive for c in root.ctx._child_contexts))
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_greenhouse_loop_seed_module_loads(self):
+        scanner = ModuleScanner(os.path.join(ROOT_DIR, "modules"))
+        permanent, _ = scanner.scan_all()
+        gh_desc = next((m for m in permanent if m.id == "greenhouse_loop"), None)
+        self.assertIsNotNone(gh_desc)
+        host_api = HostAPI(module_id=gh_desc.id, storage_root=ROOT_DIR)
+        widget = ModuleLoader.load_module_widget(gh_desc, host_api)
+        self.assertIsInstance(widget, LSystemRootWidget)
+        widget.on_pause()
+
+    def test_parametric_lsystem_expand_seed_rules_and_repeat(self):
+        seed = {
+            "node_type": "module_container",
+            "title": "4-Relay Board",
+            "rules": {
+                "relay_btn": {
+                    "node_type": "actuator_toggle",
+                    "label": "Relay $i",
+                    "control_endpoint": "/relay/$i",
+                }
+            },
+            "children": [
+                {
+                    "node_type": "grid_container",
+                    "cols": 2,
+                    "repeat": 4,
+                    "start": 1,
+                    "template": {"symbol": "relay_btn", "params": {"i": "$i"}},
+                },
+                {
+                    "node_type": "row_container",
+                    "items": ["Pump", "Fan"],
+                    "template": {
+                        "node_type": "action_button",
+                        "label": "$item",
+                        "control_endpoint": "/act/$idx",
+                    },
+                },
+            ],
+        }
+        expanded = expand_seed(seed)
+        grid = expanded["children"][0]
+        self.assertEqual(len(grid["children"]), 4)
+        self.assertEqual(grid["children"][0]["label"], "Relay 1")
+        self.assertEqual(grid["children"][3]["control_endpoint"], "/relay/4")
+
+        row = expanded["children"][1]
+        self.assertEqual([c["label"] for c in row["children"]], ["Pump", "Fan"])
+        self.assertEqual(row["children"][1]["control_endpoint"], "/act/1")
+
+        # Grows cleanly into Kivy widgets
+        widget = grow_ui_from_seed(seed)
+        self.assertIsNotNone(widget)
+
+    def test_discover_edge_nodes_and_edge_dock_module(self):
+        state = EdgeNodeState()
+        server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(state))
+        port = server.server_address[1]
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            found = []
+            discover_edge_nodes(
+                timeout=0.3,
+                ports=(port,),
+                extra_hosts=["127.0.0.1"],
+                callback=lambda nodes: found.append(nodes),
+            )
+            deadline = time.time() + 3.0
+            while time.time() < deadline and not found:
+                Clock.tick()
+                time.sleep(0.03)
+            self.assertEqual(len(found), 1)
+            self.assertTrue(any(n["seed_url"] == f"http://127.0.0.1:{port}/seed.json" for n in found[0]))
+
+            scanner = ModuleScanner(os.path.join(ROOT_DIR, "modules"))
+            permanent, _ = scanner.scan_all()
+            dock_desc = next((m for m in permanent if m.id == "edge_dock"), None)
+            self.assertIsNotNone(dock_desc)
+            host_api = HostAPI(module_id=dock_desc.id, storage_root=ROOT_DIR)
+            widget = ModuleLoader.load_module_widget(dock_desc, host_api)
+            self.assertIsInstance(widget, LSystemRootWidget)
+            widget.on_pause()
+        finally:
+            server.shutdown()
+            server.server_close()
 
 
 if __name__ == "__main__":

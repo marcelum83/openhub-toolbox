@@ -1,0 +1,112 @@
+{
+  "node_type": "module_container",
+  "title": "Greenhouse & Thermosiphon",
+  "subtitle": "greenhouse-pi.local",
+  "base_url": "http://greenhouse-pi.local",
+  "poll_interval": 2.5,
+  "simulate_offline": true,
+  "children": [
+    {
+      "node_type": "status_banner",
+      "text": "Passive thermal gradient monitor + autonomic vent/frost reflexes + remote node graft."
+    },
+    {
+      "node_type": "grid_container",
+      "cols": 2,
+      "children": [
+        {
+          "node_type": "sensor_readout",
+          "label": "Canopy Temp",
+          "data_endpoint": "/canopy/temp",
+          "unit": "°C",
+          "precision": 1,
+          "warn_low": 4.0,
+          "warn_high": 32.0,
+          "sim_value": 23.6,
+          "sim_range": [8.0, 34.0]
+        },
+        {
+          "node_type": "sensor_readout",
+          "label": "Collector ΔT",
+          "data_endpoint": "/thermosiphon/delta_t",
+          "unit": "°C",
+          "precision": 1,
+          "accent": "success",
+          "sim_value": 14.2,
+          "sim_range": [2.0, 26.0]
+        }
+      ]
+    },
+    {
+      "node_type": "gauge_bar",
+      "label": "Thermal Mass Tank",
+      "data_endpoint": "/tank/temp",
+      "range": [10, 75],
+      "unit": "°C",
+      "precision": 1,
+      "accent": "success",
+      "sim_value": 48.5,
+      "sim_range": [22.0, 68.0]
+    },
+    {
+      "node_type": "sparkline_chart",
+      "label": "Thermosiphon Loop ΔT",
+      "data_endpoint": "/thermosiphon/delta_t",
+      "unit": "°C",
+      "precision": 1,
+      "accent": "success",
+      "max_points": 24,
+      "sim_value": 14.2,
+      "sim_range": [2.0, 26.0]
+    },
+    {
+      "node_type": "actuator_slider",
+      "label": "Roof Louver Angle",
+      "control_endpoint": "/vent/louver",
+      "range": [0, 100],
+      "step": 10,
+      "initial": 30,
+      "unit": "%"
+    },
+    {
+      "node_type": "homeostasis_rule",
+      "id": "greenhouse_overheat",
+      "label": "Canopy Overheat Vent",
+      "sensor_endpoint": "/canopy/temp",
+      "operator": ">",
+      "threshold": 28.0,
+      "hysteresis": 2.0,
+      "unit": "°C",
+      "target_endpoint": "/vent/louver",
+      "target_payload": { "value": 100 },
+      "restore_payload": { "value": 20 },
+      "sim_value": 23.6,
+      "sim_range": [8.0, 34.0]
+    },
+    {
+      "node_type": "homeostasis_rule",
+      "id": "frost_guard",
+      "label": "Frost Thermal Dump",
+      "sensor_endpoint": "/canopy/temp",
+      "operator": "<",
+      "threshold": 5.0,
+      "hysteresis": 2.0,
+      "unit": "°C",
+      "target_endpoint": "/dump_valve/open",
+      "target_payload": { "state": true },
+      "restore_payload": { "state": false },
+      "sim_value": 23.6,
+      "sim_range": [8.0, 34.0]
+    },
+    {
+      "node_type": "node_graft",
+      "title": "Docked Micro-Grid Bus",
+      "seed_url": "http://127.0.0.1:8090/seed.json",
+      "fallback_seed": {
+        "node_type": "status_banner",
+        "text": "Dock detached — run pi_node_server.py (:8090) or plug in Shed/Van bus to graft live."
+      }
+    }
+  ]
+}
+

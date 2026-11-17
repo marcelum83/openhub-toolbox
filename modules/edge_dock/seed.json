@@ -1,0 +1,41 @@
+{
+  "node_type": "module_container",
+  "title": "Edge Hardware Dock",
+  "subtitle": "Zero-Config Organism Host",
+  "simulate_offline": true,
+  "rules": {
+    "relay_btn": {
+      "node_type": "actuator_toggle",
+      "label": "AUX Relay $i",
+      "control_endpoint": "/relay/$i",
+      "initial": false
+    }
+  },
+  "children": [
+    {
+      "node_type": "edge_dock",
+      "title": "LAN Pi / ESP32 Nodes",
+      "ports": [8090]
+    },
+    {
+      "node_type": "module_container",
+      "title": "Parametric 4-Channel Relay Matrix",
+      "subtitle": "Grown from 1 L-system rule",
+      "children": [
+        {
+          "node_type": "grid_container",
+          "cols": 2,
+          "repeat": 4,
+          "start": 1,
+          "template": {
+            "symbol": "relay_btn",
+            "params": {
+              "i": "$i"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+
